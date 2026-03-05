@@ -1,0 +1,160 @@
+import { describe, expect, test } from "bun:test";
+import { resolveMetadata } from "../src/metadata.ts";
+
+describe("resolveMetadata", () => {
+	const baseUrl = "https://example.com";
+
+	test("creates entries with full loc URLs", async () => {
+		const entries = await resolveMetadata(
+			["/about", "/blog"],
+			baseUrl,
+			undefined,
+			undefined,
+		);
+		expect(entries).toEqual([
+			{ loc: "https://example.com/about" },
+			{ loc: "https://example.com/blog" },
+		]);
+	});
+
+	describe("lastmod", () => {
+		test("includes lastmod when callback returns a value", async () => {
+			const lastmod = () => "2025-06-15";
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				lastmod,
+				undefined,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/about", lastmod: "2025-06-15" },
+			]);
+		});
+
+		test("omits lastmod when callback returns undefined", async () => {
+			const lastmod = () => undefined;
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				lastmod,
+				undefined,
+			);
+			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
+		});
+
+		test("supports async lastmod callback", async () => {
+			const lastmod = async (url: string) => {
+				if (url === "/about") return "2025-01-01";
+				return undefined;
+			};
+			const entries = await resolveMetadata(
+				["/about", "/blog"],
+				baseUrl,
+				lastmod,
+				undefined,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/about", lastmod: "2025-01-01" },
+				{ loc: "https://example.com/blog" },
+			]);
+		});
+
+		test("passes the URL path (not full loc) to the callback", async () => {
+			let receivedUrl = "";
+			const lastmod = (url: string) => {
+				receivedUrl = url;
+				return undefined;
+			};
+			await resolveMetadata(["/about"], baseUrl, lastmod, undefined);
+			expect(receivedUrl).toBe("/about");
+		});
+	});
+
+	describe("priority", () => {
+		test("applies uniform priority number to all entries", async () => {
+			const entries = await resolveMetadata(
+				["/a", "/b"],
+				baseUrl,
+				undefined,
+				0.5,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/a", priority: 0.5 },
+				{ loc: "https://example.com/b", priority: 0.5 },
+			]);
+		});
+
+		test("applies priority rules with exact string match", async () => {
+			const rules = [{ match: "/about", priority: 0.8 }];
+			const entries = await resolveMetadata(
+				["/about", "/blog"],
+				baseUrl,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/about", priority: 0.8 },
+				{ loc: "https://example.com/blog" },
+			]);
+		});
+
+		test("applies priority rules with regex match", async () => {
+			const rules = [{ match: /^\/blog/, priority: 0.7 }];
+			const entries = await resolveMetadata(
+				["/about", "/blog", "/blog/post"],
+				baseUrl,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/about" },
+				{ loc: "https://example.com/blog", priority: 0.7 },
+				{ loc: "https://example.com/blog/post", priority: 0.7 },
+			]);
+		});
+
+		test("first matching rule wins", async () => {
+			const rules = [
+				{ match: "/", priority: 1.0 },
+				{ match: /.*/, priority: 0.5 },
+			];
+			const entries = await resolveMetadata(
+				["/", "/about"],
+				baseUrl,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/", priority: 1.0 },
+				{ loc: "https://example.com/about", priority: 0.5 },
+			]);
+		});
+
+		test("omits priority when no rules match", async () => {
+			const rules = [{ match: "/nonexistent", priority: 1.0 }];
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
+		});
+	});
+
+	test("combines lastmod and priority", async () => {
+		const entries = await resolveMetadata(
+			["/about"],
+			baseUrl,
+			() => "2025-06-15",
+			0.8,
+		);
+		expect(entries).toEqual([
+			{
+				loc: "https://example.com/about",
+				lastmod: "2025-06-15",
+				priority: 0.8,
+			},
+		]);
+	});
+});
