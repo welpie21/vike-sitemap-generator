@@ -5,7 +5,10 @@ import { resolve } from "node:path";
 import { writeSitemap } from "../src/writer.ts";
 
 describe("writeSitemap", () => {
-	const testDir = resolve(tmpdir(), `vike-sitemap-generator-test-${Date.now()}`);
+	const testDir = resolve(
+		tmpdir(),
+		`vike-sitemap-generator-test-${Date.now()}`,
+	);
 	const xml = '<?xml version="1.0"?><urlset></urlset>';
 
 	afterEach(async () => {
