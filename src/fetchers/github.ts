@@ -22,7 +22,9 @@ export async function getLastModFromGithub(
 
 		if (!res.ok) return undefined;
 
-		const commits = (await res.json()) as { commit: { committer: { date: string } } }[];
+		const commits = (await res.json()) as {
+			commit: { committer: { date: string } };
+		}[];
 		if (!commits[0]) return undefined;
 
 		return commits[0].commit.committer.date.split("T")[0];

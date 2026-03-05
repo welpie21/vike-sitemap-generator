@@ -13,7 +13,7 @@ function mockFetch(response: { ok: boolean; body?: unknown }) {
 			ok: response.ok,
 			json: () => Promise.resolve(response.body),
 		}),
-	) as typeof fetch;
+	) as unknown as typeof fetch;
 }
 
 describe("getLastModFromGithub", () => {
@@ -65,7 +65,7 @@ describe("getLastModFromGithub", () => {
 	test("returns undefined when fetch throws", async () => {
 		globalThis.fetch = mock(() =>
 			Promise.reject(new Error("network error")),
-		) as typeof fetch;
+		) as unknown as typeof fetch;
 
 		const result = await getLastModFromGithub({
 			token: "fake-token",
@@ -85,7 +85,7 @@ describe("getLastModFromGithub", () => {
 						{ commit: { committer: { date: "2025-01-01T00:00:00Z" } } },
 					]),
 			}),
-		) as typeof fetch;
+		) as unknown as typeof fetch;
 		globalThis.fetch = fetchMock;
 
 		await getLastModFromGithub({
@@ -95,7 +95,7 @@ describe("getLastModFromGithub", () => {
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [url, options] = fetchMock.mock.calls[0];
+		const [url, options] = (fetchMock as unknown as { mock: { calls: unknown[] } }).mock.calls[0] as [string, RequestInit];
 		expect(url).toBe(
 			"https://api.github.com/repos/owner/repo/commits?path=src%2Fapp.tsx&per_page=1",
 		);
