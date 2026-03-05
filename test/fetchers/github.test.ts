@@ -95,7 +95,9 @@ describe("getLastModFromGithub", () => {
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [url, options] = (fetchMock as unknown as { mock: { calls: unknown[] } }).mock.calls[0] as [string, RequestInit];
+		const [url, options] = (
+			fetchMock as unknown as { mock: { calls: unknown[] } }
+		).mock.calls[0] as [string, RequestInit];
 		expect(url).toBe(
 			"https://api.github.com/repos/owner/repo/commits?path=src%2Fapp.tsx&per_page=1",
 		);
