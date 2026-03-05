@@ -130,6 +130,77 @@ vikeSitemap({
 })
 ```
 
+## Fetchers
+
+### `getLastModFromGit`
+
+A helper that gets the last commit date for a file from the local git history. Useful as a `lastmod` callback when your pages are in the same repository as your build.
+
+```ts
+import { vikeSitemap, getLastModFromGit } from 'vike-sitemap-generator'
+
+export default {
+  plugins: [
+    vikeSitemap({
+      baseUrl: 'https://example.com',
+      lastmod: async (url) => {
+        const filePath = url === '/'
+          ? 'pages/index/+Page.tsx'
+          : `pages${url}/+Page.tsx`
+
+        return getLastModFromGit({ filePath })
+      },
+    }),
+  ],
+}
+```
+
+#### Options
+
+| Parameter  | Type     | Description                                                        |
+| ---------- | -------- | ------------------------------------------------------------------ |
+| `filePath` | `string` | Path to the file (relative to `cwd`) to get the last commit date for |
+| `cwd`      | `string` | _(optional)_ Working directory for the git command. Defaults to `process.cwd()` |
+
+Returns the date of the most recent commit touching that file as a `YYYY-MM-DD` string, or `undefined` if the file has no commits or git is unavailable.
+
+### `getLastModFromGithub`
+
+A helper that fetches the last commit date for a file from the GitHub API. Useful as a `lastmod` callback when your pages are tracked in a GitHub repository.
+
+```ts
+import { vikeSitemap, getLastModFromGithub } from 'vike-sitemap-generator'
+
+export default {
+  plugins: [
+    vikeSitemap({
+      baseUrl: 'https://example.com',
+      lastmod: async (url) => {
+        const filePath = url === '/'
+          ? 'pages/index/+Page.tsx'
+          : `pages${url}/+Page.tsx`
+
+        return getLastModFromGithub({
+          token: process.env.GH_TOKEN!,
+          repo: 'owner/repo',
+          filePath,
+        })
+      },
+    }),
+  ],
+}
+```
+
+#### Options
+
+| Parameter  | Type     | Description                                                        |
+| ---------- | -------- | ------------------------------------------------------------------ |
+| `token`    | `string` | GitHub personal access token (needs repo read access)              |
+| `repo`     | `string` | Repository in `owner/repo` format                                  |
+| `filePath` | `string` | Path to the file in the repository to get the last commit date for |
+
+Returns the date of the most recent commit touching that file as a `YYYY-MM-DD` string, or `undefined` if the file has no commits or the request fails.
+
 ## How It Works
 
 The plugin hooks into Vite's build pipeline:
