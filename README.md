@@ -1,4 +1,4 @@
-# vike-sitemap
+# vike-sitemap-generator
 
 Vite plugin for [Vike](https://vike.dev) that automatically generates a `sitemap.xml` at build time.
 
@@ -8,11 +8,11 @@ Vite plugin for [Vike](https://vike.dev) that automatically generates a `sitemap
 ## Install
 
 ```bash
-npm install vike-sitemap
+npm install vike-sitemap-generator
 # or
-bun add vike-sitemap
+bun add vike-sitemap-generator
 # or
-pnpm add vike-sitemap
+pnpm add vike-sitemap-generator
 ```
 
 Requires `vike >= 0.4.0` and `vite >= 5.0.0` as peer dependencies.
@@ -22,7 +22,7 @@ Requires `vike >= 0.4.0` and `vite >= 5.0.0` as peer dependencies.
 ```ts
 // vite.config.ts
 import vike from 'vike/plugin'
-import { vikeSitemap } from 'vike-sitemap'
+import { vikeSitemap } from 'vike-sitemap-generator'
 
 export default {
   plugins: [
