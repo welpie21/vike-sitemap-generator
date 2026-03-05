@@ -16,7 +16,7 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 	let outDir: string;
 
 	return {
-		name: "vike-sitemap",
+		name: "vike-sitemap-generator",
 		apply: "build",
 
 		async configResolved(viteConfig) {
@@ -30,7 +30,7 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 
 			if (urls.length === 0) {
 				console.warn(
-					"[vike-sitemap] No URLs collected — skipping sitemap generation.",
+					"[vike-sitemap-generator] No URLs collected — skipping sitemap generation.",
 				);
 				return;
 			}
@@ -46,7 +46,7 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 			const outputPath = await writeSitemap(xml, outDir, config.outFile);
 
 			console.log(
-				`[vike-sitemap] Generated sitemap with ${entries.length} URLs → ${outputPath}`,
+				`[vike-sitemap-generator] Generated sitemap with ${entries.length} URLs → ${outputPath}`,
 			);
 		},
 	};

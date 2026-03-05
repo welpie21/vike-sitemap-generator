@@ -4,7 +4,7 @@ import { vikeSitemap } from "../src/plugin.ts";
 describe("vikeSitemap", () => {
 	test("returns a plugin with the correct name", () => {
 		const plugin = vikeSitemap({ baseUrl: "https://example.com" });
-		expect(plugin.name).toBe("vike-sitemap");
+		expect(plugin.name).toBe("vike-sitemap-generator");
 	});
 
 	test("only applies during build", () => {

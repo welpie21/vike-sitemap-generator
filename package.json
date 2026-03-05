@@ -1,5 +1,5 @@
 {
-	"name": "vike-sitemap",
+	"name": "vike-sitemap-generator",
 	"version": "0.1.0",
 	"description": "Vite plugin for Vike that generates sitemap.xml at build time",
 	"type": "module",
@@ -35,7 +35,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/welpie21/vike-sitemap.git"
+		"url": "git+https://github.com/welpie21/vike-sitemap-generator.git"
 	},
 	"peerDependencies": {
 		"vike": ">=0.4.0",
