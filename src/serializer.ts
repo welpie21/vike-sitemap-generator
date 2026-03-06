@@ -25,6 +25,10 @@ function serializeEntry(entry: SitemapEntry): string {
 		lines.push(`    <priority>${entry.priority.toFixed(1)}</priority>`);
 	}
 
+	if (entry.changefreq !== undefined) {
+		lines.push(`    <changefreq>${escapeXml(entry.changefreq)}</changefreq>`);
+	}
+
 	lines.push(`  </url>`);
 	return lines.join("\n");
 }

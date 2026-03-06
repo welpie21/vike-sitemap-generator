@@ -24,6 +24,12 @@ export interface SitemapPluginOptions {
 	 * - An array of rules allows per-route overrides. Rules are evaluated in order; first match wins.
 	 */
 	priority?: PriorityConfig;
+	/**
+	 * Change frequency configuration.
+	 * - A single value applies to all routes as the default.
+	 * - An array of rules allows per-route overrides. Rules are evaluated in order; first match wins.
+	 */
+	changefreq?: ChangefreqConfig;
 	/** Additional URLs to include (for SSR apps with parameterized routes that aren't prerendered) */
 	additionalUrls?: string[];
 	/**
@@ -42,10 +48,29 @@ export interface PriorityRule {
 	priority: number;
 }
 
+export type Changefreq =
+	| "always"
+	| "hourly"
+	| "daily"
+	| "weekly"
+	| "monthly"
+	| "yearly"
+	| "never";
+
+export type ChangefreqConfig = Changefreq | ChangefreqRule[];
+
+export interface ChangefreqRule {
+	/** Exact path string or RegExp to match against the URL path */
+	match: string | RegExp;
+	/** Change frequency value */
+	changefreq: Changefreq;
+}
+
 export interface SitemapEntry {
 	loc: string;
 	lastmod?: string;
 	priority?: number;
+	changefreq?: Changefreq;
 }
 
 export type { Plugin };

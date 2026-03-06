@@ -6,6 +6,7 @@ export interface ResolvedConfig {
 	trailingSlash: boolean | Record<string, boolean> | undefined;
 	lastmod: SitemapPluginOptions["lastmod"];
 	priority: SitemapPluginOptions["priority"];
+	changefreq: SitemapPluginOptions["changefreq"];
 	additionalUrls: string[];
 	exclude: (string | RegExp)[];
 }
@@ -19,6 +20,7 @@ export function resolveConfig(options: SitemapPluginOptions): ResolvedConfig {
 		trailingSlash: options.trailingSlash,
 		lastmod: options.lastmod,
 		priority: options.priority,
+		changefreq: options.changefreq,
 		additionalUrls: options.additionalUrls ?? [],
 		exclude: options.exclude ?? [],
 	};

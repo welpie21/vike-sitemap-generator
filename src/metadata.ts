@@ -1,7 +1,14 @@
-import type { PriorityConfig, PriorityRule, SitemapEntry } from "./types.ts";
+import type {
+	Changefreq,
+	ChangefreqConfig,
+	ChangefreqRule,
+	PriorityConfig,
+	PriorityRule,
+	SitemapEntry,
+} from "./types.ts";
 
 /**
- * Resolves metadata (lastmod, priority) for each URL path, producing SitemapEntry objects.
+ * Resolves metadata (lastmod, priority, changefreq) for each URL path, producing SitemapEntry objects.
  */
 export async function resolveMetadata(
 	urls: string[],
@@ -10,6 +17,7 @@ export async function resolveMetadata(
 		| ((url: string) => Promise<string | undefined> | string | undefined)
 		| undefined,
 	priorityConfig: PriorityConfig | undefined,
+	changefreqConfig: ChangefreqConfig | undefined,
 ): Promise<SitemapEntry[]> {
 	const entries: SitemapEntry[] = [];
 
@@ -17,11 +25,13 @@ export async function resolveMetadata(
 		const loc = `${baseUrl}${url}`;
 		const lastmod = await resolveLastmod(url, lastmodFn);
 		const priority = resolvePriority(url, priorityConfig);
+		const changefreq = resolveChangefreq(url, changefreqConfig);
 
 		entries.push({
 			loc,
 			...(lastmod !== undefined && { lastmod }),
 			...(priority !== undefined && { priority }),
+			...(changefreq !== undefined && { changefreq }),
 		});
 	}
 
@@ -53,6 +63,27 @@ function resolvePriority(
 }
 
 function matchPriorityRule(url: string, rule: PriorityRule): boolean {
+	if (rule.match instanceof RegExp) {
+		return rule.match.test(url);
+	}
+	return url === rule.match;
+}
+
+function resolveChangefreq(
+	url: string,
+	config: ChangefreqConfig | undefined,
+): Changefreq | undefined {
+	if (config === undefined) return undefined;
+	if (typeof config === "string") return config;
+
+	for (const rule of config) {
+		if (matchChangefreqRule(url, rule)) return rule.changefreq;
+	}
+
+	return undefined;
+}
+
+function matchChangefreqRule(url: string, rule: ChangefreqRule): boolean {
 	if (rule.match instanceof RegExp) {
 		return rule.match.test(url);
 	}

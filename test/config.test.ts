@@ -51,9 +51,11 @@ describe("resolveConfig", () => {
 			trailingSlash: true,
 			lastmod,
 			priority: 0.5,
+			changefreq: "weekly",
 		});
 		expect(config.trailingSlash).toBe(true);
 		expect(config.lastmod).toBe(lastmod);
 		expect(config.priority).toBe(0.5);
+		expect(config.changefreq).toBe("weekly");
 	});
 });

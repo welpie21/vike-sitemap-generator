@@ -78,12 +78,30 @@ describe("serializeSitemap", () => {
 		);
 	});
 
+	test("includes changefreq when present", () => {
+		const xml = serializeSitemap([
+			{ loc: "https://example.com/", changefreq: "weekly" },
+		]);
+		expect(xml).toContain("<changefreq>weekly</changefreq>");
+	});
+
+	test("omits changefreq when absent", () => {
+		const xml = serializeSitemap([{ loc: "https://example.com/" }]);
+		expect(xml).not.toContain("<changefreq>");
+	});
+
 	test("includes all fields when present", () => {
 		const xml = serializeSitemap([
-			{ loc: "https://example.com/", lastmod: "2025-06-15", priority: 1.0 },
+			{
+				loc: "https://example.com/",
+				lastmod: "2025-06-15",
+				priority: 1.0,
+				changefreq: "daily",
+			},
 		]);
 		expect(xml).toContain("<loc>https://example.com/</loc>");
 		expect(xml).toContain("<lastmod>2025-06-15</lastmod>");
 		expect(xml).toContain("<priority>1.0</priority>");
+		expect(xml).toContain("<changefreq>daily</changefreq>");
 	});
 });
