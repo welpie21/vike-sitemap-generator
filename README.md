@@ -64,7 +64,11 @@ vikeSitemap({
 
 ### `trailingSlash`
 
-Controls trailing slashes on URLs in the sitemap.
+Configure trailing slashes on URLs in the sitemap. Accepts a single boolean
+(applied to all routes) or an array of rules evaluated in order — first match
+wins.
+
+Rules support exact path strings or RegExp patterns.
 
 ```ts
 // Add trailing slash to all URLs
@@ -73,17 +77,17 @@ vikeSitemap({ baseUrl: "...", trailingSlash: true });
 // Remove trailing slash from all URLs
 vikeSitemap({ baseUrl: "...", trailingSlash: false });
 
-// Per-path overrides (supports glob patterns with /*)
+// Per-route rules
 vikeSitemap({
 	baseUrl: "...",
-	trailingSlash: {
-		"/blog/*": true, // /blog/my-post → /blog/my-post/
-		"/docs/*": false, // /docs/intro/ → /docs/intro
-	},
+	trailingSlash: [
+		{ match: /^\/blog/, trailingSlash: true }, // /blog/my-post → /blog/my-post/
+		{ match: /^\/docs/, trailingSlash: false }, // /docs/intro/ → /docs/intro
+	],
 });
 ```
 
-Paths that don't match any rule are left unchanged when using per-path config.
+Routes that don't match any rule are left unchanged when using per-route rules.
 
 ### `lastmod`
 
