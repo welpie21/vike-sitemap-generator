@@ -4,6 +4,7 @@ Vite plugin for [Vike](https://vike.dev) that automatically generates a `sitemap
 
 - Collects all page URLs from Vike's prerender context (SSG) or route config (SSR)
 - Configurable output path, trailing slashes, `<lastmod>`, and `<priority>`
+- Exclude paths by exact string or regex pattern
 
 ## Install
 
@@ -130,6 +131,22 @@ vikeSitemap({
 })
 ```
 
+### `exclude`
+
+An array of paths to exclude from the sitemap. Each entry can be an exact path string or a RegExp pattern.
+
+```ts
+vikeSitemap({
+  baseUrl: '...',
+  exclude: [
+    '/admin',           // exact match — excludes only /admin
+    /^\/internal/,      // regex — excludes /internal, /internal/dashboard, etc.
+  ],
+})
+```
+
+String entries use exact matching, so `"/admin"` will not exclude `"/admin/settings"`. Use a RegExp like `/^\/admin/` to exclude an entire subtree.
+
 ## Fetchers
 
 ### `getLastModFromGit`
@@ -210,6 +227,7 @@ The plugin hooks into Vite's build pipeline:
    - If prerendering is enabled (SSG), collects all resolved URLs from `prerenderContext`
    - Otherwise, extracts static route patterns from Vike's page config (parameterized routes containing `@` are excluded)
    - Merges in any `additionalUrls`
+   - Filters out paths matching `exclude` patterns
    - Applies trailing slash rules, resolves `<lastmod>` and `<priority>`, and writes the XML
 
 ## License
