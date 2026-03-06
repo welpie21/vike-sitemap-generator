@@ -131,12 +131,8 @@ describe("serializeSitemap", () => {
 				],
 			},
 		]);
-		expect(xml).toContain(
-			"<image:loc>https://example.com/a.jpg</image:loc>",
-		);
-		expect(xml).toContain(
-			"<image:loc>https://example.com/b.jpg</image:loc>",
-		);
+		expect(xml).toContain("<image:loc>https://example.com/a.jpg</image:loc>");
+		expect(xml).toContain("<image:loc>https://example.com/b.jpg</image:loc>");
 	});
 
 	test("serializes optional image fields", () => {

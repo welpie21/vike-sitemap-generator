@@ -73,7 +73,14 @@ describe("resolveMetadata", () => {
 				receivedUrl = url;
 				return undefined;
 			};
-			await resolveMetadata(["/about"], baseUrl, lastmod, undefined, undefined, undefined);
+			await resolveMetadata(
+				["/about"],
+				baseUrl,
+				lastmod,
+				undefined,
+				undefined,
+				undefined,
+			);
 			expect(receivedUrl).toBe("/about");
 		});
 	});
@@ -326,8 +333,7 @@ describe("resolveMetadata", () => {
 
 		test("supports async images callback", async () => {
 			const images = async (url: string) => {
-				if (url === "/about")
-					return [{ loc: "https://example.com/about.jpg" }];
+				if (url === "/about") return [{ loc: "https://example.com/about.jpg" }];
 				return undefined;
 			};
 			const entries = await resolveMetadata(

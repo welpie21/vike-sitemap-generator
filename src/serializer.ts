@@ -56,7 +56,9 @@ function serializeImage(image: SitemapImage): string[] {
 	];
 
 	if (image.caption !== undefined) {
-		lines.push(`      <image:caption>${escapeXml(image.caption)}</image:caption>`);
+		lines.push(
+			`      <image:caption>${escapeXml(image.caption)}</image:caption>`,
+		);
 	}
 
 	if (image.geoLocation !== undefined) {

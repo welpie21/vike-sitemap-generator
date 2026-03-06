@@ -22,10 +22,7 @@ export async function resolveMetadata(
 	imagesFn:
 		| ((
 				url: string,
-		  ) =>
-				| Promise<SitemapImage[] | undefined>
-				| SitemapImage[]
-				| undefined)
+		  ) => Promise<SitemapImage[] | undefined> | SitemapImage[] | undefined)
 		| undefined,
 ): Promise<SitemapEntry[]> {
 	const entries: SitemapEntry[] = [];
@@ -106,10 +103,7 @@ async function resolveImages(
 	fn:
 		| ((
 				url: string,
-		  ) =>
-				| Promise<SitemapImage[] | undefined>
-				| SitemapImage[]
-				| undefined)
+		  ) => Promise<SitemapImage[] | undefined> | SitemapImage[] | undefined)
 		| undefined,
 ): Promise<SitemapImage[] | undefined> {
 	if (!fn) return undefined;
