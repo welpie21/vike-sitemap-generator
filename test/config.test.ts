@@ -46,16 +46,19 @@ describe("resolveConfig", () => {
 
 	test("passes through optional fields as-is", () => {
 		const lastmod = () => "2025-01-01";
+		const images = () => [{ loc: "https://example.com/img.jpg" }];
 		const config = resolveConfig({
 			baseUrl: "https://example.com",
 			trailingSlash: true,
 			lastmod,
 			priority: 0.5,
 			changefreq: "weekly",
+			images,
 		});
 		expect(config.trailingSlash).toBe(true);
 		expect(config.lastmod).toBe(lastmod);
 		expect(config.priority).toBe(0.5);
 		expect(config.changefreq).toBe("weekly");
+		expect(config.images).toBe(images);
 	});
 });

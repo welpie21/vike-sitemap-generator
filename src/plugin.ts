@@ -46,6 +46,7 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 				config.lastmod,
 				config.priority,
 				config.changefreq,
+				config.images,
 			);
 			const xml = serializeSitemap(entries);
 			const outputPath = await writeSitemap(xml, outDir, config.outFile);

@@ -11,6 +11,7 @@ describe("resolveMetadata", () => {
 			undefined,
 			undefined,
 			undefined,
+			undefined,
 		);
 		expect(entries).toEqual([
 			{ loc: "https://example.com/about" },
@@ -27,6 +28,7 @@ describe("resolveMetadata", () => {
 				lastmod,
 				undefined,
 				undefined,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about", lastmod: "2025-06-15" },
@@ -39,6 +41,7 @@ describe("resolveMetadata", () => {
 				["/about"],
 				baseUrl,
 				lastmod,
+				undefined,
 				undefined,
 				undefined,
 			);
@@ -56,6 +59,7 @@ describe("resolveMetadata", () => {
 				lastmod,
 				undefined,
 				undefined,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about", lastmod: "2025-01-01" },
@@ -69,7 +73,7 @@ describe("resolveMetadata", () => {
 				receivedUrl = url;
 				return undefined;
 			};
-			await resolveMetadata(["/about"], baseUrl, lastmod, undefined, undefined);
+			await resolveMetadata(["/about"], baseUrl, lastmod, undefined, undefined, undefined);
 			expect(receivedUrl).toBe("/about");
 		});
 	});
@@ -81,6 +85,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				undefined,
 				0.5,
+				undefined,
 				undefined,
 			);
 			expect(entries).toEqual([
@@ -97,6 +102,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				rules,
 				undefined,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about", priority: 0.8 },
@@ -111,6 +117,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				undefined,
 				rules,
+				undefined,
 				undefined,
 			);
 			expect(entries).toEqual([
@@ -131,6 +138,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				rules,
 				undefined,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/", priority: 1.0 },
@@ -146,6 +154,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				rules,
 				undefined,
+				undefined,
 			);
 			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
 		});
@@ -157,6 +166,7 @@ describe("resolveMetadata", () => {
 			baseUrl,
 			() => "2025-06-15",
 			0.8,
+			undefined,
 			undefined,
 		);
 		expect(entries).toEqual([
@@ -176,6 +186,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				undefined,
 				"weekly",
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/a", changefreq: "weekly" },
@@ -191,6 +202,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about", changefreq: "monthly" },
@@ -206,6 +218,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about" },
@@ -225,6 +238,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/", changefreq: "always" },
@@ -240,6 +254,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
 		});
@@ -252,6 +267,7 @@ describe("resolveMetadata", () => {
 			() => "2025-06-15",
 			0.8,
 			"weekly",
+			undefined,
 		);
 		expect(entries).toEqual([
 			{
@@ -261,5 +277,115 @@ describe("resolveMetadata", () => {
 				changefreq: "weekly",
 			},
 		]);
+	});
+
+	describe("images", () => {
+		test("includes images when callback returns values", async () => {
+			const images = () => [{ loc: "https://example.com/photo.jpg" }];
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				images,
+			);
+			expect(entries).toEqual([
+				{
+					loc: "https://example.com/about",
+					images: [{ loc: "https://example.com/photo.jpg" }],
+				},
+			]);
+		});
+
+		test("omits images when callback returns undefined", async () => {
+			const images = () => undefined;
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				images,
+			);
+			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
+		});
+
+		test("omits images when callback returns empty array", async () => {
+			const images = () => [];
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				images,
+			);
+			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
+		});
+
+		test("supports async images callback", async () => {
+			const images = async (url: string) => {
+				if (url === "/about")
+					return [{ loc: "https://example.com/about.jpg" }];
+				return undefined;
+			};
+			const entries = await resolveMetadata(
+				["/about", "/blog"],
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				images,
+			);
+			expect(entries).toEqual([
+				{
+					loc: "https://example.com/about",
+					images: [{ loc: "https://example.com/about.jpg" }],
+				},
+				{ loc: "https://example.com/blog" },
+			]);
+		});
+
+		test("supports multiple images per URL", async () => {
+			const images = () => [
+				{ loc: "https://example.com/a.jpg" },
+				{ loc: "https://example.com/b.jpg" },
+			];
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				images,
+			);
+			expect(entries).toEqual([
+				{
+					loc: "https://example.com/about",
+					images: [
+						{ loc: "https://example.com/a.jpg" },
+						{ loc: "https://example.com/b.jpg" },
+					],
+				},
+			]);
+		});
+
+		test("passes the URL path to the callback", async () => {
+			let receivedUrl = "";
+			const images = (url: string) => {
+				receivedUrl = url;
+				return undefined;
+			};
+			await resolveMetadata(
+				["/about"],
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				images,
+			);
+			expect(receivedUrl).toBe("/about");
+		});
 	});
 });

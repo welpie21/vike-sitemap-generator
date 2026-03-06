@@ -7,6 +7,7 @@ export interface ResolvedConfig {
 	lastmod: SitemapPluginOptions["lastmod"];
 	priority: SitemapPluginOptions["priority"];
 	changefreq: SitemapPluginOptions["changefreq"];
+	images: SitemapPluginOptions["images"];
 	additionalUrls: string[];
 	exclude: (string | RegExp)[];
 }
@@ -21,6 +22,7 @@ export function resolveConfig(options: SitemapPluginOptions): ResolvedConfig {
 		lastmod: options.lastmod,
 		priority: options.priority,
 		changefreq: options.changefreq,
+		images: options.images,
 		additionalUrls: options.additionalUrls ?? [],
 		exclude: options.exclude ?? [],
 	};
