@@ -3,7 +3,7 @@
 Vite plugin for [Vike](https://vike.dev) that automatically generates a `sitemap.xml` at build time.
 
 - Collects all page URLs from Vike's prerender context (SSG) or route config (SSR)
-- Configurable output path, trailing slashes, `<lastmod>`, and `<priority>`
+- Configurable output path, trailing slashes, `<lastmod>`, `<priority>`, and `<changefreq>`
 - Exclude paths by exact string or regex pattern
 
 ## Install
@@ -120,6 +120,31 @@ vikeSitemap({
 
 Routes that don't match any rule will have `<priority>` omitted from the sitemap.
 
+### `changefreq`
+
+Configure `<changefreq>` per route. Accepts a single value (applied to all routes) or an array of rules evaluated in order — first match wins.
+
+Valid values are: `"always"`, `"hourly"`, `"daily"`, `"weekly"`, `"monthly"`, `"yearly"`, `"never"`.
+
+Rules support exact path strings or RegExp patterns.
+
+```ts
+// Same changefreq for all routes
+vikeSitemap({ baseUrl: '...', changefreq: 'weekly' })
+
+// Per-route rules
+vikeSitemap({
+  baseUrl: '...',
+  changefreq: [
+    { match: '/', changefreq: 'daily' },
+    { match: /^\/blog/, changefreq: 'weekly' },
+    { match: /^\/docs/, changefreq: 'monthly' },
+  ],
+})
+```
+
+Routes that don't match any rule will have `<changefreq>` omitted from the sitemap.
+
 ### `additionalUrls`
 
 Explicitly include URLs that Vike can't discover automatically — useful for SSR apps with parameterized routes (e.g. `/product/@id`) that aren't prerendered.
@@ -228,7 +253,7 @@ The plugin hooks into Vite's build pipeline:
    - Otherwise, extracts static route patterns from Vike's page config (parameterized routes containing `@` are excluded)
    - Merges in any `additionalUrls`
    - Filters out paths matching `exclude` patterns
-   - Applies trailing slash rules, resolves `<lastmod>` and `<priority>`, and writes the XML
+   - Applies trailing slash rules, resolves `<lastmod>`, `<priority>`, and `<changefreq>`, and writes the XML
 
 ## License
 
