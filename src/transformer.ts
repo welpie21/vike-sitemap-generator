@@ -36,10 +36,7 @@ function resolveTrailingSlash(
 	return undefined;
 }
 
-function matchTrailingSlashRule(
-	url: string,
-	rule: TrailingSlashRule,
-): boolean {
+function matchTrailingSlashRule(url: string, rule: TrailingSlashRule): boolean {
 	if (rule.match instanceof RegExp) {
 		return rule.match.test(url);
 	}

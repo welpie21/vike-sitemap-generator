@@ -41,9 +41,10 @@ describe("applyTrailingSlashes", () => {
 
 	describe("per-route rules config", () => {
 		test("applies exact path match", () => {
-			const result = applyTrailingSlashes(["/about", "/blog"], [
-				{ match: "/about", trailingSlash: true },
-			]);
+			const result = applyTrailingSlashes(
+				["/about", "/blog"],
+				[{ match: "/about", trailingSlash: true }],
+			);
 			expect(result).toEqual(["/about/", "/blog"]);
 		});
 
@@ -61,24 +62,29 @@ describe("applyTrailingSlashes", () => {
 		});
 
 		test("leaves unmatched paths unchanged", () => {
-			const result = applyTrailingSlashes(["/about", "/contact"], [
-				{ match: /^\/blog/, trailingSlash: true },
-			]);
+			const result = applyTrailingSlashes(
+				["/about", "/contact"],
+				[{ match: /^\/blog/, trailingSlash: true }],
+			);
 			expect(result).toEqual(["/about", "/contact"]);
 		});
 
 		test("first matching rule wins", () => {
-			const result = applyTrailingSlashes(["/blog/post"], [
-				{ match: /^\/blog/, trailingSlash: true },
-				{ match: "/blog/post", trailingSlash: false },
-			]);
+			const result = applyTrailingSlashes(
+				["/blog/post"],
+				[
+					{ match: /^\/blog/, trailingSlash: true },
+					{ match: "/blog/post", trailingSlash: false },
+				],
+			);
 			expect(result).toEqual(["/blog/post/"]);
 		});
 
 		test("can remove trailing slashes per-route", () => {
-			const result = applyTrailingSlashes(["/api/", "/api/users/"], [
-				{ match: /^\/api/, trailingSlash: false },
-			]);
+			const result = applyTrailingSlashes(
+				["/api/", "/api/users/"],
+				[{ match: /^\/api/, trailingSlash: false }],
+			);
 			expect(result).toEqual(["/api", "/api/users"]);
 		});
 	});
