@@ -10,6 +10,7 @@ describe("resolveMetadata", () => {
 			baseUrl,
 			undefined,
 			undefined,
+			undefined,
 		);
 		expect(entries).toEqual([
 			{ loc: "https://example.com/about" },
@@ -25,6 +26,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				lastmod,
 				undefined,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about", lastmod: "2025-06-15" },
@@ -37,6 +39,7 @@ describe("resolveMetadata", () => {
 				["/about"],
 				baseUrl,
 				lastmod,
+				undefined,
 				undefined,
 			);
 			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
@@ -52,6 +55,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				lastmod,
 				undefined,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about", lastmod: "2025-01-01" },
@@ -65,7 +69,7 @@ describe("resolveMetadata", () => {
 				receivedUrl = url;
 				return undefined;
 			};
-			await resolveMetadata(["/about"], baseUrl, lastmod, undefined);
+			await resolveMetadata(["/about"], baseUrl, lastmod, undefined, undefined);
 			expect(receivedUrl).toBe("/about");
 		});
 	});
@@ -77,6 +81,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				undefined,
 				0.5,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/a", priority: 0.5 },
@@ -91,6 +96,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about", priority: 0.8 },
@@ -105,6 +111,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/about" },
@@ -123,6 +130,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([
 				{ loc: "https://example.com/", priority: 1.0 },
@@ -137,6 +145,7 @@ describe("resolveMetadata", () => {
 				baseUrl,
 				undefined,
 				rules,
+				undefined,
 			);
 			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
 		});
@@ -148,12 +157,108 @@ describe("resolveMetadata", () => {
 			baseUrl,
 			() => "2025-06-15",
 			0.8,
+			undefined,
 		);
 		expect(entries).toEqual([
 			{
 				loc: "https://example.com/about",
 				lastmod: "2025-06-15",
 				priority: 0.8,
+			},
+		]);
+	});
+
+	describe("changefreq", () => {
+		test("applies uniform changefreq string to all entries", async () => {
+			const entries = await resolveMetadata(
+				["/a", "/b"],
+				baseUrl,
+				undefined,
+				undefined,
+				"weekly",
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/a", changefreq: "weekly" },
+				{ loc: "https://example.com/b", changefreq: "weekly" },
+			]);
+		});
+
+		test("applies changefreq rules with exact string match", async () => {
+			const rules = [{ match: "/about", changefreq: "monthly" as const }];
+			const entries = await resolveMetadata(
+				["/about", "/blog"],
+				baseUrl,
+				undefined,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/about", changefreq: "monthly" },
+				{ loc: "https://example.com/blog" },
+			]);
+		});
+
+		test("applies changefreq rules with regex match", async () => {
+			const rules = [{ match: /^\/blog/, changefreq: "daily" as const }];
+			const entries = await resolveMetadata(
+				["/about", "/blog", "/blog/post"],
+				baseUrl,
+				undefined,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/about" },
+				{ loc: "https://example.com/blog", changefreq: "daily" },
+				{ loc: "https://example.com/blog/post", changefreq: "daily" },
+			]);
+		});
+
+		test("first matching rule wins", async () => {
+			const rules = [
+				{ match: "/", changefreq: "always" as const },
+				{ match: /.*/, changefreq: "yearly" as const },
+			];
+			const entries = await resolveMetadata(
+				["/", "/about"],
+				baseUrl,
+				undefined,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/", changefreq: "always" },
+				{ loc: "https://example.com/about", changefreq: "yearly" },
+			]);
+		});
+
+		test("omits changefreq when no rules match", async () => {
+			const rules = [{ match: "/nonexistent", changefreq: "daily" as const }];
+			const entries = await resolveMetadata(
+				["/about"],
+				baseUrl,
+				undefined,
+				undefined,
+				rules,
+			);
+			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
+		});
+	});
+
+	test("combines lastmod, priority, and changefreq", async () => {
+		const entries = await resolveMetadata(
+			["/about"],
+			baseUrl,
+			() => "2025-06-15",
+			0.8,
+			"weekly",
+		);
+		expect(entries).toEqual([
+			{
+				loc: "https://example.com/about",
+				lastmod: "2025-06-15",
+				priority: 0.8,
+				changefreq: "weekly",
 			},
 		]);
 	});
