@@ -26,6 +26,11 @@ export interface SitemapPluginOptions {
 	priority?: PriorityConfig;
 	/** Additional URLs to include (for SSR apps with parameterized routes that aren't prerendered) */
 	additionalUrls?: string[];
+	/**
+	 * URL paths to exclude from the sitemap.
+	 * Each entry can be an exact path string (e.g. "/admin") or a RegExp (e.g. /^\/internal/).
+	 */
+	exclude?: (string | RegExp)[];
 }
 
 export type PriorityConfig = number | PriorityRule[];

@@ -7,6 +7,7 @@ export interface ResolvedConfig {
 	lastmod: SitemapPluginOptions["lastmod"];
 	priority: SitemapPluginOptions["priority"];
 	additionalUrls: string[];
+	exclude: (string | RegExp)[];
 }
 
 export function resolveConfig(options: SitemapPluginOptions): ResolvedConfig {
@@ -19,5 +20,6 @@ export function resolveConfig(options: SitemapPluginOptions): ResolvedConfig {
 		lastmod: options.lastmod,
 		priority: options.priority,
 		additionalUrls: options.additionalUrls ?? [],
+		exclude: options.exclude ?? [],
 	};
 }

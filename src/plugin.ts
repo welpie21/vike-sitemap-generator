@@ -2,6 +2,7 @@ import type { getVikeConfig } from "vike/plugin";
 import type { Plugin } from "vite";
 import { collectUrls } from "./collector.ts";
 import { resolveConfig } from "./config.ts";
+import { filterExcludedUrls } from "./filter.ts";
 import { resolveMetadata } from "./metadata.ts";
 import { serializeSitemap } from "./serializer.ts";
 import { applyTrailingSlashes } from "./transformer.ts";
@@ -26,7 +27,10 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 		},
 
 		async closeBundle() {
-			const urls = collectUrls(vikeConfig, config.additionalUrls);
+			const urls = filterExcludedUrls(
+				collectUrls(vikeConfig, config.additionalUrls),
+				config.exclude,
+			);
 
 			if (urls.length === 0) {
 				console.warn(
