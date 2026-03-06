@@ -7,11 +7,10 @@ export interface SitemapPluginOptions {
 	outFile?: string;
 	/**
 	 * Trailing slash configuration.
-	 * - `true`: add trailing slash to all URLs
-	 * - `false`: remove trailing slash from all URLs
-	 * - `Record<string, boolean>`: per-path overrides where the key is an exact path or glob pattern
+	 * - A single boolean applies to all routes (`true` adds, `false` removes trailing slashes).
+	 * - An array of rules allows per-route overrides. Rules are evaluated in order; first match wins.
 	 */
-	trailingSlash?: boolean | Record<string, boolean>;
+	trailingSlash?: TrailingSlashConfig;
 	/**
 	 * Resolve `<lastmod>` per URL. Receives the URL path (e.g. "/about").
 	 * Can be async — useful for fetching file metadata or querying a CMS.
@@ -55,6 +54,15 @@ export interface PriorityRule {
 	match: string | RegExp;
 	/** Priority value between 0.0 and 1.0 */
 	priority: number;
+}
+
+export type TrailingSlashConfig = boolean | TrailingSlashRule[];
+
+export interface TrailingSlashRule {
+	/** Exact path string or RegExp to match against the URL path */
+	match: string | RegExp;
+	/** Whether to add (true) or remove (false) the trailing slash */
+	trailingSlash: boolean;
 }
 
 export type Changefreq =

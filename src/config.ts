@@ -3,7 +3,7 @@ import type { SitemapPluginOptions } from "./types.ts";
 export interface ResolvedConfig {
 	baseUrl: string;
 	outFile: string;
-	trailingSlash: boolean | Record<string, boolean> | undefined;
+	trailingSlash: SitemapPluginOptions["trailingSlash"];
 	lastmod: SitemapPluginOptions["lastmod"];
 	priority: SitemapPluginOptions["priority"];
 	changefreq: SitemapPluginOptions["changefreq"];
