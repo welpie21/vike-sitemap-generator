@@ -10,4 +10,6 @@ export type {
 	SitemapEntry,
 	SitemapImage,
 	SitemapPluginOptions,
+	TrailingSlashConfig,
+	TrailingSlashRule,
 } from "./types.ts";

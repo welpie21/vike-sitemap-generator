@@ -39,18 +39,18 @@ describe("applyTrailingSlashes", () => {
 		});
 	});
 
-	describe("per-path record config", () => {
+	describe("per-route rules config", () => {
 		test("applies exact path match", () => {
-			const result = applyTrailingSlashes(["/about", "/blog"], {
-				"/about": true,
-			});
+			const result = applyTrailingSlashes(["/about", "/blog"], [
+				{ match: "/about", trailingSlash: true },
+			]);
 			expect(result).toEqual(["/about/", "/blog"]);
 		});
 
-		test("applies glob pattern matching", () => {
+		test("applies regex pattern matching", () => {
 			const result = applyTrailingSlashes(
 				["/blog", "/blog/post-1", "/blog/post-2", "/docs"],
-				{ "/blog/*": true },
+				[{ match: /^\/blog(\/|$)/, trailingSlash: true }],
 			);
 			expect(result).toEqual([
 				"/blog/",
@@ -60,30 +60,25 @@ describe("applyTrailingSlashes", () => {
 			]);
 		});
 
-		test("glob matches the base path itself", () => {
-			const result = applyTrailingSlashes(["/blog"], { "/blog/*": true });
-			expect(result).toEqual(["/blog/"]);
-		});
-
 		test("leaves unmatched paths unchanged", () => {
-			const result = applyTrailingSlashes(["/about", "/contact"], {
-				"/blog/*": true,
-			});
+			const result = applyTrailingSlashes(["/about", "/contact"], [
+				{ match: /^\/blog/, trailingSlash: true },
+			]);
 			expect(result).toEqual(["/about", "/contact"]);
 		});
 
 		test("first matching rule wins", () => {
-			const result = applyTrailingSlashes(["/blog/post"], {
-				"/blog/*": true,
-				"/blog/post": false,
-			});
+			const result = applyTrailingSlashes(["/blog/post"], [
+				{ match: /^\/blog/, trailingSlash: true },
+				{ match: "/blog/post", trailingSlash: false },
+			]);
 			expect(result).toEqual(["/blog/post/"]);
 		});
 
-		test("can remove trailing slashes per-path", () => {
-			const result = applyTrailingSlashes(["/api/", "/api/users/"], {
-				"/api/*": false,
-			});
+		test("can remove trailing slashes per-route", () => {
+			const result = applyTrailingSlashes(["/api/", "/api/users/"], [
+				{ match: /^\/api/, trailingSlash: false },
+			]);
 			expect(result).toEqual(["/api", "/api/users"]);
 		});
 	});
