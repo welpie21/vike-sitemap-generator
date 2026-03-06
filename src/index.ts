@@ -8,5 +8,6 @@ export type {
 	PriorityConfig,
 	PriorityRule,
 	SitemapEntry,
+	SitemapImage,
 	SitemapPluginOptions,
 } from "./types.ts";

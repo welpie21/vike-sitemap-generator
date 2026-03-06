@@ -30,6 +30,15 @@ export interface SitemapPluginOptions {
 	 * - An array of rules allows per-route overrides. Rules are evaluated in order; first match wins.
 	 */
 	changefreq?: ChangefreqConfig;
+	/**
+	 * Resolve images per URL for the Google Image Sitemap extension.
+	 * Receives the URL path (e.g. "/about").
+	 * Can be async — useful for fetching image data from a CMS.
+	 * Return an array of SitemapImage objects, or undefined to omit images.
+	 */
+	images?: (
+		url: string,
+	) => Promise<SitemapImage[] | undefined> | SitemapImage[] | undefined;
 	/** Additional URLs to include (for SSR apps with parameterized routes that aren't prerendered) */
 	additionalUrls?: string[];
 	/**
@@ -66,11 +75,25 @@ export interface ChangefreqRule {
 	changefreq: Changefreq;
 }
 
+export interface SitemapImage {
+	/** URL of the image. */
+	loc: string;
+	/** Caption / description of the image. */
+	caption?: string;
+	/** Geographic location of the image (e.g. "New York, NY"). */
+	geoLocation?: string;
+	/** Title of the image. */
+	title?: string;
+	/** URL to the license for the image. */
+	license?: string;
+}
+
 export interface SitemapEntry {
 	loc: string;
 	lastmod?: string;
 	priority?: number;
 	changefreq?: Changefreq;
+	images?: SitemapImage[];
 }
 
 export type { Plugin };

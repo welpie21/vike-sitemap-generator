@@ -90,6 +90,109 @@ describe("serializeSitemap", () => {
 		expect(xml).not.toContain("<changefreq>");
 	});
 
+	test("includes image:image when images are present", () => {
+		const xml = serializeSitemap([
+			{
+				loc: "https://example.com/",
+				images: [{ loc: "https://example.com/photo.jpg" }],
+			},
+		]);
+		expect(xml).toContain("<image:image>");
+		expect(xml).toContain(
+			"<image:loc>https://example.com/photo.jpg</image:loc>",
+		);
+		expect(xml).toContain("</image:image>");
+	});
+
+	test("includes image namespace when images are present", () => {
+		const xml = serializeSitemap([
+			{
+				loc: "https://example.com/",
+				images: [{ loc: "https://example.com/photo.jpg" }],
+			},
+		]);
+		expect(xml).toContain(
+			'xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"',
+		);
+	});
+
+	test("omits image namespace when no images are present", () => {
+		const xml = serializeSitemap([{ loc: "https://example.com/" }]);
+		expect(xml).not.toContain("xmlns:image");
+	});
+
+	test("serializes multiple images per entry", () => {
+		const xml = serializeSitemap([
+			{
+				loc: "https://example.com/",
+				images: [
+					{ loc: "https://example.com/a.jpg" },
+					{ loc: "https://example.com/b.jpg" },
+				],
+			},
+		]);
+		expect(xml).toContain("<image:loc>https://example.com/a.jpg</image:loc>");
+		expect(xml).toContain("<image:loc>https://example.com/b.jpg</image:loc>");
+	});
+
+	test("serializes optional image fields", () => {
+		const xml = serializeSitemap([
+			{
+				loc: "https://example.com/",
+				images: [
+					{
+						loc: "https://example.com/photo.jpg",
+						caption: "A nice photo",
+						geoLocation: "New York, NY",
+						title: "Photo Title",
+						license: "https://example.com/license",
+					},
+				],
+			},
+		]);
+		expect(xml).toContain("<image:caption>A nice photo</image:caption>");
+		expect(xml).toContain(
+			"<image:geo_location>New York, NY</image:geo_location>",
+		);
+		expect(xml).toContain("<image:title>Photo Title</image:title>");
+		expect(xml).toContain(
+			"<image:license>https://example.com/license</image:license>",
+		);
+	});
+
+	test("omits optional image fields when absent", () => {
+		const xml = serializeSitemap([
+			{
+				loc: "https://example.com/",
+				images: [{ loc: "https://example.com/photo.jpg" }],
+			},
+		]);
+		expect(xml).not.toContain("<image:caption>");
+		expect(xml).not.toContain("<image:geo_location>");
+		expect(xml).not.toContain("<image:title>");
+		expect(xml).not.toContain("<image:license>");
+	});
+
+	test("escapes XML special characters in image fields", () => {
+		const xml = serializeSitemap([
+			{
+				loc: "https://example.com/",
+				images: [
+					{
+						loc: "https://example.com/a&b.jpg",
+						caption: "A <nice> photo",
+					},
+				],
+			},
+		]);
+		expect(xml).toContain(
+			"<image:loc>https://example.com/a&amp;b.jpg</image:loc>",
+		);
+		expect(xml).toContain(
+			"<image:caption>A &lt;nice&gt; photo</image:caption>",
+		);
+	});
+
 	test("includes all fields when present", () => {
 		const xml = serializeSitemap([
 			{
@@ -97,11 +200,15 @@ describe("serializeSitemap", () => {
 				lastmod: "2025-06-15",
 				priority: 1.0,
 				changefreq: "daily",
+				images: [{ loc: "https://example.com/photo.jpg" }],
 			},
 		]);
 		expect(xml).toContain("<loc>https://example.com/</loc>");
 		expect(xml).toContain("<lastmod>2025-06-15</lastmod>");
 		expect(xml).toContain("<priority>1.0</priority>");
 		expect(xml).toContain("<changefreq>daily</changefreq>");
+		expect(xml).toContain(
+			"<image:loc>https://example.com/photo.jpg</image:loc>",
+		);
 	});
 });
