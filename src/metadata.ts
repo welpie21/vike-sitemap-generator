@@ -30,7 +30,7 @@ export async function resolveMetadata(
 	for (const url of urls) {
 		const loc = `${baseUrl}${url}`;
 		const lastmod = await resolveLastmod(url, lastmodFn);
-		const priority = resolvePriority(url, priorityConfig);
+		const priority = resolvePriority(url, priorityConfig, urls);
 		const changefreq = resolveChangefreq(url, changefreqConfig);
 		const images = await resolveImages(url, imagesFn);
 
@@ -59,9 +59,11 @@ async function resolveLastmod(
 function resolvePriority(
 	url: string,
 	config: PriorityConfig | undefined,
+	urls: string[],
 ): number | undefined {
 	if (config === undefined) return undefined;
 	if (typeof config === "number") return config;
+	if (typeof config === "function") return config(url, { urls });
 
 	for (const rule of config) {
 		if (matchPriorityRule(url, rule)) return rule.priority;

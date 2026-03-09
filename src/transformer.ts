@@ -7,6 +7,7 @@ import type { TrailingSlashConfig, TrailingSlashRule } from "./types.ts";
  * - `false`: ensure no paths end with `/` (except root `/`)
  * - `TrailingSlashRule[]`: per-route overrides. Rules are evaluated in order; first match wins.
  *   Unmatched paths are left as-is.
+ * - `TrailingSlashFn`: a function called per URL with access to all URLs via context.
  * - `undefined`: no transformation
  */
 export function applyTrailingSlashes(
@@ -17,6 +18,11 @@ export function applyTrailingSlashes(
 
 	if (typeof config === "boolean") {
 		return urls.map((url) => setTrailingSlash(url, config));
+	}
+
+	if (typeof config === "function") {
+		const context = { urls };
+		return urls.map((url) => setTrailingSlash(url, config(url, context)));
 	}
 
 	return urls.map((url) => {

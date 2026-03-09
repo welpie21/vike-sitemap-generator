@@ -88,4 +88,47 @@ describe("applyTrailingSlashes", () => {
 			expect(result).toEqual(["/api", "/api/users"]);
 		});
 	});
+
+	describe("function config", () => {
+		test("adds trailing slash when URL has children", () => {
+			const allUrls = ["/", "/blog", "/blog/post-1", "/blog/post-2", "/about"];
+			const result = applyTrailingSlashes(allUrls, (url, { urls }) => {
+				return urls.some((u) => u !== url && u.startsWith(`${url}/`));
+			});
+			expect(result).toEqual([
+				"/",
+				"/blog/",
+				"/blog/post-1",
+				"/blog/post-2",
+				"/about",
+			]);
+		});
+
+		test("removes trailing slash for leaf URLs", () => {
+			const allUrls = ["/blog/", "/blog/post/", "/about/"];
+			const result = applyTrailingSlashes(allUrls, (url, { urls }) => {
+				const normalized = url.endsWith("/") ? url.slice(0, -1) : url;
+				return urls.some((u) => {
+					const n = u.endsWith("/") ? u.slice(0, -1) : u;
+					return n !== normalized && n.startsWith(`${normalized}/`);
+				});
+			});
+			expect(result).toEqual(["/blog/", "/blog/post", "/about"]);
+		});
+
+		test("receives correct context with all URLs", () => {
+			const allUrls = ["/a", "/b", "/c"];
+			let receivedContext: { urls: string[] } | undefined;
+			applyTrailingSlashes(allUrls, (_url, context) => {
+				receivedContext = context;
+				return false;
+			});
+			expect(receivedContext?.urls).toEqual(allUrls);
+		});
+
+		test("keeps root slash unchanged", () => {
+			const result = applyTrailingSlashes(["/", "/about"], () => true);
+			expect(result).toEqual(["/", "/about/"]);
+		});
+	});
 });
