@@ -108,12 +108,10 @@ describe("applyTrailingSlashes", () => {
 			const allUrls = ["/blog/", "/blog/post/", "/about/"];
 			const result = applyTrailingSlashes(allUrls, (url, { urls }) => {
 				const normalized = url.endsWith("/") ? url.slice(0, -1) : url;
-				return urls.some(
-					(u) => {
-						const n = u.endsWith("/") ? u.slice(0, -1) : u;
-						return n !== normalized && n.startsWith(`${normalized}/`);
-					},
-				);
+				return urls.some((u) => {
+					const n = u.endsWith("/") ? u.slice(0, -1) : u;
+					return n !== normalized && n.startsWith(`${normalized}/`);
+				});
 			});
 			expect(result).toEqual(["/blog/", "/blog/post", "/about"]);
 		});

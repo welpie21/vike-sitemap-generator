@@ -56,10 +56,7 @@ export interface SitemapContext {
 }
 
 /** Function that determines trailing slash behavior per URL with access to all URLs. */
-export type TrailingSlashFn = (
-	url: string,
-	context: SitemapContext,
-) => boolean;
+export type TrailingSlashFn = (url: string, context: SitemapContext) => boolean;
 
 /** Function that determines priority per URL with access to all URLs. */
 export type PriorityFn = (

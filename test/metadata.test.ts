@@ -195,10 +195,7 @@ describe("resolveMetadata", () => {
 		test("priority function receives correct context", async () => {
 			const allUrls = ["/a", "/b", "/c"];
 			let receivedContext: { urls: string[] } | undefined;
-			const priorityFn = (
-				_url: string,
-				context: { urls: string[] },
-			) => {
+			const priorityFn = (_url: string, context: { urls: string[] }) => {
 				receivedContext = context;
 				return 0.5;
 			};
