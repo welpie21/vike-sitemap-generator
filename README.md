@@ -65,8 +65,8 @@ vikeSitemap({
 ### `trailingSlash`
 
 Configure trailing slashes on URLs in the sitemap. Accepts a single boolean
-(applied to all routes) or an array of rules evaluated in order — first match
-wins.
+(applied to all routes), an array of rules evaluated in order (first match
+wins), or a function for dynamic control.
 
 Rules support exact path strings or RegExp patterns.
 
@@ -89,6 +89,31 @@ vikeSitemap({
 
 Routes that don't match any rule are left unchanged when using per-route rules.
 
+#### Function
+
+A function receives each URL and a `SitemapContext` containing all collected
+URLs. Return `true` to add a trailing slash or `false` to remove it.
+
+This is useful for automatically adding trailing slashes to URLs that have child
+routes (siblings) while removing them from leaf URLs.
+
+```ts
+import { type SitemapContext, vikeSitemap } from "vike-sitemap-generator";
+
+vikeSitemap({
+	baseUrl: "...",
+	trailingSlash: (url, { urls }) => {
+		// Add trailing slash if this URL has child routes
+		return urls.some((u) => u !== url && u.startsWith(`${url}/`));
+	},
+});
+// Given ["/", "/blog", "/blog/post-1", "/about"]:
+//   "/" stays "/"
+//   "/blog" → "/blog/"  (has children)
+//   "/blog/post-1" stays "/blog/post-1"  (leaf)
+//   "/about" stays "/about"  (leaf)
+```
+
 ### `lastmod`
 
 An async callback to resolve `<lastmod>` for each URL. Receives the URL path
@@ -110,7 +135,8 @@ vikeSitemap({
 ### `priority`
 
 Configure `<priority>` per route. Accepts a single number (applied to all
-routes) or an array of rules evaluated in order — first match wins.
+routes), an array of rules evaluated in order (first match wins), or a function
+for dynamic control.
 
 Rules support exact path strings or RegExp patterns.
 
@@ -131,6 +157,33 @@ vikeSitemap({
 
 Routes that don't match any rule will have `<priority>` omitted from the
 sitemap.
+
+#### Function
+
+A function receives each URL and a `SitemapContext` containing all collected
+URLs. Return a number between 0.0 and 1.0, or `undefined` to omit priority.
+
+This is useful for computing priority dynamically based on the URL structure,
+such as giving higher priority to URLs with child routes.
+
+```ts
+import { type SitemapContext, vikeSitemap } from "vike-sitemap-generator";
+
+vikeSitemap({
+	baseUrl: "...",
+	priority: (url, { urls }) => {
+		const hasChildren = urls.some(
+			(u) => u !== url && u.startsWith(`${url === "/" ? "" : url}/`),
+		);
+		return hasChildren ? 0.8 : 0.5;
+	},
+});
+// Given ["/", "/blog", "/blog/post-1", "/about"]:
+//   "/" → 0.8  (has children)
+//   "/blog" → 0.8  (has children)
+//   "/blog/post-1" → 0.5  (leaf)
+//   "/about" → 0.5  (leaf)
+```
 
 ### `changefreq`
 
