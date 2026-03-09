@@ -9,6 +9,7 @@ export interface SitemapPluginOptions {
 	 * Trailing slash configuration.
 	 * - A single boolean applies to all routes (`true` adds, `false` removes trailing slashes).
 	 * - An array of rules allows per-route overrides. Rules are evaluated in order; first match wins.
+	 * - A function receives each URL and a context with all URLs, returning a boolean.
 	 */
 	trailingSlash?: TrailingSlashConfig;
 	/**
@@ -21,6 +22,7 @@ export interface SitemapPluginOptions {
 	 * Priority configuration.
 	 * - A single number applies to all routes as the default.
 	 * - An array of rules allows per-route overrides. Rules are evaluated in order; first match wins.
+	 * - A function receives each URL and a context with all URLs, returning a priority number or undefined.
 	 */
 	priority?: PriorityConfig;
 	/**
@@ -47,7 +49,25 @@ export interface SitemapPluginOptions {
 	exclude?: (string | RegExp)[];
 }
 
-export type PriorityConfig = number | PriorityRule[];
+/** Context object passed to trailingSlash and priority callback functions. */
+export interface SitemapContext {
+	/** All collected URL paths in the sitemap. */
+	urls: string[];
+}
+
+/** Function that determines trailing slash behavior per URL with access to all URLs. */
+export type TrailingSlashFn = (
+	url: string,
+	context: SitemapContext,
+) => boolean;
+
+/** Function that determines priority per URL with access to all URLs. */
+export type PriorityFn = (
+	url: string,
+	context: SitemapContext,
+) => number | undefined;
+
+export type PriorityConfig = number | PriorityRule[] | PriorityFn;
 
 export interface PriorityRule {
 	/** Exact path string or RegExp to match against the URL path */
@@ -56,7 +76,10 @@ export interface PriorityRule {
 	priority: number;
 }
 
-export type TrailingSlashConfig = boolean | TrailingSlashRule[];
+export type TrailingSlashConfig =
+	| boolean
+	| TrailingSlashRule[]
+	| TrailingSlashFn;
 
 export interface TrailingSlashRule {
 	/** Exact path string or RegExp to match against the URL path */

@@ -165,6 +165,72 @@ describe("resolveMetadata", () => {
 			);
 			expect(entries).toEqual([{ loc: "https://example.com/about" }]);
 		});
+
+		test("applies priority function based on child count", async () => {
+			const allUrls = ["/", "/blog", "/blog/post-1", "/blog/post-2", "/about"];
+			const priorityFn = (url: string, { urls }: { urls: string[] }) => {
+				const children = urls.filter(
+					(u) => u !== url && u.startsWith(`${url === "/" ? "" : url}/`),
+				);
+				if (children.length > 0) return 0.8;
+				return 0.5;
+			};
+			const entries = await resolveMetadata(
+				allUrls,
+				baseUrl,
+				undefined,
+				priorityFn,
+				undefined,
+				undefined,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/", priority: 0.8 },
+				{ loc: "https://example.com/blog", priority: 0.8 },
+				{ loc: "https://example.com/blog/post-1", priority: 0.5 },
+				{ loc: "https://example.com/blog/post-2", priority: 0.5 },
+				{ loc: "https://example.com/about", priority: 0.5 },
+			]);
+		});
+
+		test("priority function receives correct context", async () => {
+			const allUrls = ["/a", "/b", "/c"];
+			let receivedContext: { urls: string[] } | undefined;
+			const priorityFn = (
+				_url: string,
+				context: { urls: string[] },
+			) => {
+				receivedContext = context;
+				return 0.5;
+			};
+			await resolveMetadata(
+				allUrls,
+				baseUrl,
+				undefined,
+				priorityFn,
+				undefined,
+				undefined,
+			);
+			expect(receivedContext?.urls).toEqual(allUrls);
+		});
+
+		test("priority function returning undefined omits priority", async () => {
+			const priorityFn = (url: string) => {
+				if (url === "/about") return 0.9;
+				return undefined;
+			};
+			const entries = await resolveMetadata(
+				["/about", "/blog"],
+				baseUrl,
+				undefined,
+				priorityFn,
+				undefined,
+				undefined,
+			);
+			expect(entries).toEqual([
+				{ loc: "https://example.com/about", priority: 0.9 },
+				{ loc: "https://example.com/blog" },
+			]);
+		});
 	});
 
 	test("combines lastmod and priority", async () => {
