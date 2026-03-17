@@ -81,6 +81,22 @@ function serializeImage(image: SitemapImage): string[] {
 	return lines;
 }
 
+/**
+ * Serializes a sitemap index XML referencing multiple sitemap files.
+ */
+export function serializeSitemapIndex(sitemapUrls: string[]): string {
+	const sitemaps = sitemapUrls
+		.map((url) => `  <sitemap>\n    <loc>${escapeXml(url)}</loc>\n  </sitemap>`)
+		.join("\n");
+
+	return [
+		'<?xml version="1.0" encoding="UTF-8"?>',
+		'<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+		sitemaps,
+		"</sitemapindex>",
+	].join("\n");
+}
+
 function escapeXml(str: string): string {
 	return str
 		.replace(/&/g, "&amp;")

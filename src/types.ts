@@ -6,6 +6,11 @@ export interface SitemapPluginOptions {
 	/** Output path relative to build outDir. Default: "sitemap.xml" */
 	outFile?: string;
 	/**
+	 * Output directory independent of Vite's build.outDir.
+	 * Absolute or project-relative path. Falls back to the client build's outDir when omitted.
+	 */
+	outDir?: string;
+	/**
 	 * Trailing slash configuration.
 	 * - A single boolean applies to all routes (`true` adds, `false` removes trailing slashes).
 	 * - An array of rules allows per-route overrides. Rules are evaluated in order; first match wins.
@@ -47,6 +52,14 @@ export interface SitemapPluginOptions {
 	 * Each entry can be an exact path string (e.g. "/admin") or a RegExp (e.g. /^\/internal/).
 	 */
 	exclude?: (string | RegExp)[];
+	/** Maximum concurrent metadata resolutions. Default: 10. Use Infinity for unlimited. */
+	concurrency?: number;
+	/** Maximum URLs per sitemap file. Exceeding this splits into multiple files with a sitemap index. Default: 50000. */
+	maxUrlsPerSitemap?: number;
+	/** When enabled, appends or creates a Sitemap directive in robots.txt. Default: false. */
+	robots?: boolean;
+	/** When enabled, logs the generated XML to the console without writing files. Default: false. */
+	dryRun?: boolean;
 }
 
 /** Context object passed to trailingSlash and priority callback functions. */
@@ -122,6 +135,22 @@ export interface SitemapEntry {
 	priority?: number;
 	changefreq?: Changefreq;
 	images?: SitemapImage[];
+}
+
+/** Per-page sitemap metadata defined in +sitemap.ts files. */
+export interface SitemapPageConfig {
+	priority?: number;
+	changefreq?: Changefreq;
+	lastmod?: string;
+	images?: SitemapImage[];
+	/** When true, excludes this page from the sitemap. */
+	exclude?: boolean;
+}
+
+/** A collected URL together with its optional per-page sitemap config. */
+export interface CollectedUrl {
+	url: string;
+	pageConfig?: SitemapPageConfig;
 }
 
 export type { Plugin };

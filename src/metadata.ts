@@ -2,17 +2,21 @@ import type {
 	Changefreq,
 	ChangefreqConfig,
 	ChangefreqRule,
+	CollectedUrl,
 	PriorityConfig,
 	PriorityRule,
 	SitemapEntry,
 	SitemapImage,
+	SitemapPageConfig,
 } from "./types.ts";
 
 /**
- * Resolves metadata (lastmod, priority, changefreq, images) for each URL path, producing SitemapEntry objects.
+ * Resolves metadata (lastmod, priority, changefreq, images) for each URL path,
+ * producing SitemapEntry objects. Per-page config from +sitemap.ts takes precedence
+ * over global options. Resolution runs in parallel batches controlled by concurrency.
  */
 export async function resolveMetadata(
-	urls: string[],
+	urls: CollectedUrl[],
 	baseUrl: string,
 	lastmodFn:
 		| ((url: string) => Promise<string | undefined> | string | undefined)
@@ -24,26 +28,71 @@ export async function resolveMetadata(
 				url: string,
 		  ) => Promise<SitemapImage[] | undefined> | SitemapImage[] | undefined)
 		| undefined,
+	concurrency: number,
 ): Promise<SitemapEntry[]> {
+	const allUrls = urls.map((item) => item.url);
 	const entries: SitemapEntry[] = [];
 
-	for (const url of urls) {
-		const loc = `${baseUrl}${url}`;
-		const lastmod = await resolveLastmod(url, lastmodFn);
-		const priority = resolvePriority(url, priorityConfig, urls);
-		const changefreq = resolveChangefreq(url, changefreqConfig);
-		const images = await resolveImages(url, imagesFn);
-
-		entries.push({
-			loc,
-			...(lastmod !== undefined && { lastmod }),
-			...(priority !== undefined && { priority }),
-			...(changefreq !== undefined && { changefreq }),
-			...(images !== undefined && images.length > 0 && { images }),
-		});
+	for (let i = 0; i < urls.length; i += concurrency) {
+		const batch = urls.slice(i, i + concurrency);
+		const batchResults = await Promise.all(
+			batch.map((item) =>
+				resolveEntry(
+					item.url,
+					item.pageConfig,
+					baseUrl,
+					lastmodFn,
+					priorityConfig,
+					changefreqConfig,
+					imagesFn,
+					allUrls,
+				),
+			),
+		);
+		for (const entry of batchResults) {
+			if (entry !== null) {
+				entries.push(entry);
+			}
+		}
 	}
 
 	return entries;
+}
+
+async function resolveEntry(
+	url: string,
+	pageConfig: SitemapPageConfig | undefined,
+	baseUrl: string,
+	lastmodFn:
+		| ((url: string) => Promise<string | undefined> | string | undefined)
+		| undefined,
+	priorityConfig: PriorityConfig | undefined,
+	changefreqConfig: ChangefreqConfig | undefined,
+	imagesFn:
+		| ((
+				url: string,
+		  ) => Promise<SitemapImage[] | undefined> | SitemapImage[] | undefined)
+		| undefined,
+	allUrls: string[],
+): Promise<SitemapEntry | null> {
+	if (pageConfig?.exclude) return null;
+
+	const loc = `${baseUrl}${url}`;
+
+	const lastmod = pageConfig?.lastmod ?? (await resolveLastmod(url, lastmodFn));
+	const priority =
+		pageConfig?.priority ?? resolvePriority(url, priorityConfig, allUrls);
+	const changefreq =
+		pageConfig?.changefreq ?? resolveChangefreq(url, changefreqConfig);
+	const images = pageConfig?.images ?? (await resolveImages(url, imagesFn));
+
+	return {
+		loc,
+		...(lastmod !== undefined && { lastmod }),
+		...(priority !== undefined && { priority }),
+		...(changefreq !== undefined && { changefreq }),
+		...(images !== undefined && images.length > 0 && { images }),
+	};
 }
 
 async function resolveLastmod(

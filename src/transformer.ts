@@ -1,7 +1,11 @@
-import type { TrailingSlashConfig, TrailingSlashRule } from "./types.ts";
+import type {
+	CollectedUrl,
+	TrailingSlashConfig,
+	TrailingSlashRule,
+} from "./types.ts";
 
 /**
- * Applies trailing slash rules to a list of URL paths.
+ * Applies trailing slash rules to a list of collected URLs.
  *
  * - `true`: ensure all paths end with `/`
  * - `false`: ensure no paths end with `/` (except root `/`)
@@ -11,24 +15,30 @@ import type { TrailingSlashConfig, TrailingSlashRule } from "./types.ts";
  * - `undefined`: no transformation
  */
 export function applyTrailingSlashes(
-	urls: string[],
+	urls: CollectedUrl[],
 	config: TrailingSlashConfig | undefined,
-): string[] {
+): CollectedUrl[] {
 	if (config === undefined) return urls;
 
 	if (typeof config === "boolean") {
-		return urls.map((url) => setTrailingSlash(url, config));
+		return urls.map((item) => ({
+			...item,
+			url: setTrailingSlash(item.url, config),
+		}));
 	}
 
 	if (typeof config === "function") {
-		const context = { urls };
-		return urls.map((url) => setTrailingSlash(url, config(url, context)));
+		const context = { urls: urls.map((item) => item.url) };
+		return urls.map((item) => ({
+			...item,
+			url: setTrailingSlash(item.url, config(item.url, context)),
+		}));
 	}
 
-	return urls.map((url) => {
-		const resolved = resolveTrailingSlash(url, config);
-		if (resolved === undefined) return url;
-		return setTrailingSlash(url, resolved);
+	return urls.map((item) => {
+		const resolved = resolveTrailingSlash(item.url, config);
+		if (resolved === undefined) return item;
+		return { ...item, url: setTrailingSlash(item.url, resolved) };
 	});
 }
 

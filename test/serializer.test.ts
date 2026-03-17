@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeSitemap } from "../src/serializer.ts";
+import { serializeSitemap, serializeSitemapIndex } from "../src/serializer.ts";
 
 describe("serializeSitemap", () => {
 	test("generates valid XML with a single entry", () => {
@@ -210,5 +210,41 @@ describe("serializeSitemap", () => {
 		expect(xml).toContain(
 			"<image:loc>https://example.com/photo.jpg</image:loc>",
 		);
+	});
+});
+
+describe("serializeSitemapIndex", () => {
+	test("generates valid sitemap index XML", () => {
+		const xml = serializeSitemapIndex([
+			"https://example.com/sitemap-0.xml",
+			"https://example.com/sitemap-1.xml",
+		]);
+		expect(xml).toBe(
+			`<?xml version="1.0" encoding="UTF-8"?>\n` +
+				`<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+				`  <sitemap>\n` +
+				`    <loc>https://example.com/sitemap-0.xml</loc>\n` +
+				`  </sitemap>\n` +
+				`  <sitemap>\n` +
+				`    <loc>https://example.com/sitemap-1.xml</loc>\n` +
+				`  </sitemap>\n` +
+				`</sitemapindex>`,
+		);
+	});
+
+	test("generates single sitemap entry", () => {
+		const xml = serializeSitemapIndex(["https://example.com/sitemap-0.xml"]);
+		expect(xml).toContain("<loc>https://example.com/sitemap-0.xml</loc>");
+	});
+
+	test("escapes XML special characters in URLs", () => {
+		const xml = serializeSitemapIndex(["https://example.com/sitemap&0.xml"]);
+		expect(xml).toContain("<loc>https://example.com/sitemap&amp;0.xml</loc>");
+	});
+
+	test("generates empty sitemapindex with no entries", () => {
+		const xml = serializeSitemapIndex([]);
+		expect(xml).toContain("<sitemapindex");
+		expect(xml).toContain("</sitemapindex>");
 	});
 });

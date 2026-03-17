@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveConfig } from "../src/config.ts";
+import { resolveConfig } from "../src/resolveConfig.ts";
 
 describe("resolveConfig", () => {
 	test("strips trailing slashes from baseUrl", () => {
@@ -30,6 +30,19 @@ describe("resolveConfig", () => {
 		expect(config.outFile).toBe("custom.xml");
 	});
 
+	test("defaults outDir to undefined", () => {
+		const config = resolveConfig({ baseUrl: "https://example.com" });
+		expect(config.outDir).toBeUndefined();
+	});
+
+	test("passes through outDir when provided", () => {
+		const config = resolveConfig({
+			baseUrl: "https://example.com",
+			outDir: "dist/public",
+		});
+		expect(config.outDir).toBe("dist/public");
+	});
+
 	test("defaults additionalUrls to empty array", () => {
 		const config = resolveConfig({ baseUrl: "https://example.com" });
 		expect(config.additionalUrls).toEqual([]);
@@ -42,6 +55,58 @@ describe("resolveConfig", () => {
 			additionalUrls: urls,
 		});
 		expect(config.additionalUrls).toEqual(urls);
+	});
+
+	test("defaults concurrency to 10", () => {
+		const config = resolveConfig({ baseUrl: "https://example.com" });
+		expect(config.concurrency).toBe(10);
+	});
+
+	test("uses custom concurrency when provided", () => {
+		const config = resolveConfig({
+			baseUrl: "https://example.com",
+			concurrency: 50,
+		});
+		expect(config.concurrency).toBe(50);
+	});
+
+	test("defaults maxUrlsPerSitemap to 50000", () => {
+		const config = resolveConfig({ baseUrl: "https://example.com" });
+		expect(config.maxUrlsPerSitemap).toBe(50_000);
+	});
+
+	test("uses custom maxUrlsPerSitemap when provided", () => {
+		const config = resolveConfig({
+			baseUrl: "https://example.com",
+			maxUrlsPerSitemap: 10_000,
+		});
+		expect(config.maxUrlsPerSitemap).toBe(10_000);
+	});
+
+	test("defaults robots to false", () => {
+		const config = resolveConfig({ baseUrl: "https://example.com" });
+		expect(config.robots).toBe(false);
+	});
+
+	test("uses custom robots when provided", () => {
+		const config = resolveConfig({
+			baseUrl: "https://example.com",
+			robots: true,
+		});
+		expect(config.robots).toBe(true);
+	});
+
+	test("defaults dryRun to false", () => {
+		const config = resolveConfig({ baseUrl: "https://example.com" });
+		expect(config.dryRun).toBe(false);
+	});
+
+	test("uses custom dryRun when provided", () => {
+		const config = resolveConfig({
+			baseUrl: "https://example.com",
+			dryRun: true,
+		});
+		expect(config.dryRun).toBe(true);
 	});
 
 	test("passes through optional fields as-is", () => {
