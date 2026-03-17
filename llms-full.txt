@@ -1,0 +1,596 @@
+# vike-sitemap-generator
+
+> Vite plugin for Vike that automatically generates sitemap.xml at build time
+
+vike-sitemap-generator is a Vite build plugin for Vike (a full-stack framework built on Vite). It collects page URLs from Vike's prerender context (SSG) or route config (SSR) and generates standards-compliant sitemap XML during the build.
+
+## Key features
+
+- Automatic URL collection from Vike's SSG prerender context or SSR route patterns
+- Per-page metadata via co-located `+sitemap.ts` files using Vike's extension system
+- Parallel metadata resolution with configurable concurrency (default 10)
+- Automatic sitemap index splitting for large sites exceeding 50,000 URLs
+- Configurable `<lastmod>`, `<priority>`, `<changefreq>`, and `<image:image>` per URL
+- Trailing slash control (boolean, per-route rules, or function)
+- Exclude paths by exact string, regex, or per-page `exclude: true`
+- Optional `robots.txt` integration (auto-append `Sitemap:` directive)
+- Dry-run mode for previewing output without writing files
+- Configurable output directory independent of Vite's build output
+- Built-in `getLastModFromGit` and `getLastModFromGithub` helpers
+
+## Install
+
+```
+npm install vike-sitemap-generator
+# or
+bun add vike-sitemap-generator
+# or
+pnpm add vike-sitemap-generator
+```
+
+Peer dependencies: `vike >= 0.4.0`, `vite >= 5.0.0`
+
+## Export paths
+
+- `vike-sitemap-generator` -- main plugin export (`vikeSitemap`), type exports, and fetcher helpers (`getLastModFromGit`, `getLastModFromGithub`)
+- `vike-sitemap-generator/config` -- Vike extension config (default export) for `+sitemap.ts` support
+
+## Quick start
+
+Add the plugin to your Vite config:
+
+```ts
+// vite.config.ts
+import vike from "vike/plugin";
+import { vikeSitemap } from "vike-sitemap-generator";
+
+export default {
+  plugins: [
+    vike(),
+    vikeSitemap({
+      baseUrl: "https://example.com",
+    }),
+  ],
+};
+```
+
+This generates a `sitemap.xml` in your build output directory after the client build completes.
+
+## Plugin options reference
+
+All options are passed to `vikeSitemap()` in your Vite config.
+
+### `baseUrl` (required)
+
+The base URL of your site. Must not end with a trailing slash.
+
+```ts
+vikeSitemap({ baseUrl: "https://example.com" });
+```
+
+### `outFile`
+
+Path for the generated sitemap, relative to the output directory. Defaults to `"sitemap.xml"`.
+
+```ts
+vikeSitemap({
+  baseUrl: "https://example.com",
+  outFile: "custom/path/sitemap.xml",
+});
+```
+
+### `outDir`
+
+Output directory independent of Vite's `build.outDir`. Accepts an absolute path or a path relative to your project root. When omitted, falls back to the client build's output directory.
+
+```ts
+vikeSitemap({
+  baseUrl: "https://example.com",
+  outDir: "dist/public",
+});
+```
+
+Relative paths are resolved against Vite's project root. Absolute paths are used as-is. Nested directories are created automatically.
+
+### `trailingSlash`
+
+Configure trailing slashes on URLs in the sitemap. Accepts a boolean, an array of rules (first match wins), or a function.
+
+```ts
+// Add trailing slash to all URLs
+vikeSitemap({ baseUrl: "...", trailingSlash: true });
+
+// Remove trailing slash from all URLs
+vikeSitemap({ baseUrl: "...", trailingSlash: false });
+
+// Per-route rules (exact strings or RegExp)
+vikeSitemap({
+  baseUrl: "...",
+  trailingSlash: [
+    { match: /^\/blog/, trailingSlash: true },
+    { match: /^\/docs/, trailingSlash: false },
+  ],
+});
+
+// Function with access to all URLs
+vikeSitemap({
+  baseUrl: "...",
+  trailingSlash: (url, { urls }) => {
+    return urls.some((u) => u !== url && u.startsWith(`${url}/`));
+  },
+});
+```
+
+The root URL `/` is never modified. Per-route rules are evaluated in order; the first matching rule wins. Unmatched URLs are left unchanged. The trailing slash transformation runs before metadata resolution; per-page `+sitemap.ts` files do not control trailing slashes.
+
+### `lastmod`
+
+Async callback to resolve `<lastmod>` for each URL. Receives the URL path (e.g. `"/about"`) and should return an ISO 8601 date string, or `undefined` to omit.
+
+```ts
+vikeSitemap({
+  baseUrl: "...",
+  lastmod: async (url) => {
+    const res = await fetch(`https://cms.example.com/meta?path=${url}`);
+    const data = await res.json();
+    return data.updatedAt;
+  },
+});
+```
+
+### `priority`
+
+Configure `<priority>` per route. Accepts a number (applied to all), an array of rules (first match wins), or a function.
+
+```ts
+// Uniform priority
+vikeSitemap({ baseUrl: "...", priority: 0.5 });
+
+// Per-route rules
+vikeSitemap({
+  baseUrl: "...",
+  priority: [
+    { match: "/", priority: 1.0 },
+    { match: /^\/blog/, priority: 0.8 },
+  ],
+});
+
+// Function
+vikeSitemap({
+  baseUrl: "...",
+  priority: (url, { urls }) => {
+    const hasChildren = urls.some(
+      (u) => u !== url && u.startsWith(`${url === "/" ? "" : url}/`),
+    );
+    return hasChildren ? 0.8 : 0.5;
+  },
+});
+```
+
+### `changefreq`
+
+Configure `<changefreq>` per route. Accepts a single value or an array of rules.
+
+Valid values: `"always"`, `"hourly"`, `"daily"`, `"weekly"`, `"monthly"`, `"yearly"`, `"never"`.
+
+```ts
+vikeSitemap({ baseUrl: "...", changefreq: "weekly" });
+
+// Per-route rules
+vikeSitemap({
+  baseUrl: "...",
+  changefreq: [
+    { match: "/", changefreq: "daily" },
+    { match: /^\/blog/, changefreq: "weekly" },
+    { match: /^\/docs/, changefreq: "monthly" },
+  ],
+});
+```
+
+### `images`
+
+Async callback to resolve `<image:image>` entries for each URL (Google Image Sitemap extension). Receives the URL path and should return an array of `SitemapImage` objects, or `undefined` to omit.
+
+```ts
+vikeSitemap({
+  baseUrl: "...",
+  images: async (url) => {
+    const res = await fetch(`https://cms.example.com/images?path=${url}`);
+    const data = await res.json();
+    return data.images.map((img) => ({
+      loc: img.url,
+      title: img.alt,
+    }));
+  },
+});
+```
+
+SitemapImage fields:
+- `loc` (string, required) -- URL of the image
+- `caption` (string, optional) -- Caption or description
+- `geoLocation` (string, optional) -- Geographic location (e.g. "New York, NY")
+- `title` (string, optional) -- Title of the image
+- `license` (string, optional) -- URL to the license
+
+When any entry has images, the `image` XML namespace is automatically added to the `<urlset>`.
+
+### `additionalUrls`
+
+Include URLs that Vike can't discover automatically, such as SSR apps with parameterized routes that aren't prerendered.
+
+```ts
+vikeSitemap({
+  baseUrl: "...",
+  additionalUrls: ["/product/1", "/product/2", "/product/3"],
+});
+```
+
+### `exclude`
+
+An array of paths to exclude from the sitemap. Each entry can be an exact path string or a RegExp pattern.
+
+```ts
+vikeSitemap({
+  baseUrl: "...",
+  exclude: [
+    "/admin",
+    /^\/internal/,
+  ],
+});
+```
+
+String entries use exact matching. Use a RegExp like `/^\/admin/` to exclude an entire subtree.
+
+### `concurrency`
+
+Maximum number of concurrent metadata resolutions. Defaults to `10`. Set to `Infinity` for unlimited parallelism.
+
+When `lastmod` or `images` callbacks involve async I/O (git commands, API calls, CMS fetches), this controls how many run in parallel. URLs are processed in batches; within each batch, all async callbacks run concurrently via `Promise.all`.
+
+```ts
+vikeSitemap({
+  baseUrl: "...",
+  lastmod: async (url) => { /* ... */ },
+  concurrency: 20,
+});
+```
+
+Guidelines:
+- External API calls (CMS, GitHub): Use `5` or `10` to stay within rate limits.
+- Local git commands: `10-20` is a reasonable range.
+- In-memory lookups: Use `Infinity` for maximum throughput.
+
+Per-page `+sitemap.ts` values bypass the global callbacks entirely, freeing up concurrency slots.
+
+### `maxUrlsPerSitemap`
+
+Maximum URLs per sitemap file. When exceeded, the plugin automatically splits into multiple numbered sitemap files and generates a sitemap index. Defaults to `50000` (the sitemap protocol limit).
+
+```ts
+vikeSitemap({
+  baseUrl: "...",
+  maxUrlsPerSitemap: 10000,
+});
+```
+
+This produces `sitemap-0.xml`, `sitemap-1.xml`, ..., and a `sitemap.xml` index that references them.
+
+Example index XML:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://example.com/sitemap-0.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://example.com/sitemap-1.xml</loc>
+  </sitemap>
+</sitemapindex>
+```
+
+### `robots`
+
+When enabled, appends a `Sitemap:` directive to `robots.txt` in the output directory, pointing to the generated sitemap. Creates the file if it doesn't exist. Avoids duplicate entries. Defaults to `false`.
+
+```ts
+vikeSitemap({
+  baseUrl: "https://example.com",
+  robots: true,
+});
+```
+
+Behavior:
+- If `robots.txt` exists, appends `Sitemap: https://example.com/sitemap.xml` at the end (unless already present).
+- If `robots.txt` does not exist, creates it with just the directive.
+- Running the build multiple times does not create duplicate entries.
+- When using a sitemap index, the directive points to the index file, not individual numbered files.
+
+### `dryRun`
+
+When enabled, logs the generated XML to the console without writing any files. Useful for debugging. Defaults to `false`.
+
+```ts
+vikeSitemap({
+  baseUrl: "https://example.com",
+  dryRun: true,
+});
+```
+
+In dry-run mode:
+- No `sitemap.xml` or split sitemap files are written.
+- No `robots.txt` is written (even if `robots: true`).
+- All metadata resolution (lastmod, images, etc.) still runs normally so you can verify the full pipeline.
+
+## Per-page metadata with `+sitemap.ts`
+
+Co-locate sitemap metadata alongside your pages using Vike's extension system. Per-page values take precedence over global plugin options.
+
+### Setup
+
+Register the Vike extension in your root page config:
+
+```ts
+// pages/+config.ts
+import vikeSitemapConfig from "vike-sitemap-generator/config";
+
+export default {
+  extends: [vikeSitemapConfig],
+};
+```
+
+This registers `sitemap` as a recognized Vike setting, enabling `+sitemap.ts` files throughout your page tree.
+
+### Defining per-page metadata
+
+Create a `+sitemap.ts` (or `+sitemap.js`) file in any page directory:
+
+```ts
+// pages/about/+sitemap.ts
+import type { SitemapPageConfig } from "vike-sitemap-generator";
+
+export default {
+  priority: 0.8,
+  changefreq: "monthly",
+  lastmod: "2025-06-15",
+} satisfies SitemapPageConfig;
+```
+
+### SitemapPageConfig fields
+
+- `priority` (number) -- `<priority>` value between 0.0 and 1.0
+- `changefreq` (Changefreq) -- `<changefreq>` value (e.g. `"weekly"`)
+- `lastmod` (string) -- `<lastmod>` ISO 8601 date string
+- `images` (SitemapImage[]) -- Array of image objects for `<image:image>`
+- `exclude` (boolean) -- When `true`, excludes the page from the sitemap
+
+### Excluding pages
+
+```ts
+// pages/admin/+sitemap.ts
+export default {
+  exclude: true,
+};
+```
+
+### Precedence rules
+
+Per-page values always override global options:
+
+- `+sitemap.ts` `priority: 0.9` overrides global `priority: 0.5` for that page.
+- `+sitemap.ts` `lastmod: "2024-01-01"` overrides the global `lastmod` callback result.
+- `+sitemap.ts` `images` prevents the global `images` callback from being called for that URL.
+- Fields not set in `+sitemap.ts` fall through to the global callbacks/rules.
+
+### Per-page images
+
+```ts
+// pages/gallery/+sitemap.ts
+export default {
+  images: [
+    {
+      loc: "https://example.com/photos/sunset.jpg",
+      title: "Sunset over the ocean",
+      caption: "A beautiful sunset photographed at Malibu Beach",
+    },
+    {
+      loc: "https://example.com/photos/mountain.jpg",
+      title: "Mountain landscape",
+    },
+  ],
+};
+```
+
+### SSG vs SSR behavior
+
+- SSG (prerendering): The plugin matches prerendered URLs back to their page configurations to attach per-page metadata.
+- SSR (no prerendering): The plugin reads `page.config.sitemap` directly from each page entry in Vike's config.
+
+## Fetchers
+
+Built-in helpers for resolving `<lastmod>` from git history.
+
+### `getLastModFromGit` (local)
+
+Uses the local git binary to get the last commit date for a file.
+
+```ts
+import { getLastModFromGit, vikeSitemap } from "vike-sitemap-generator";
+
+vikeSitemap({
+  baseUrl: "https://example.com",
+  lastmod: async (url) => {
+    const filePath =
+      url === "/" ? "pages/index/+Page.tsx" : `pages${url}/+Page.tsx`;
+    return getLastModFromGit({ filePath });
+  },
+});
+```
+
+Options:
+- `filePath` (string, required) -- Path to the file, relative to `cwd`
+- `cwd` (string, optional) -- Working directory for the git command. Defaults to `process.cwd()`
+
+Returns the date of the most recent commit as `YYYY-MM-DD`, or `undefined` if the file has no git history, does not exist, or git is not available.
+
+### `getLastModFromGithub` (remote)
+
+Fetches the last commit date via the GitHub REST API. Useful when your build environment doesn't have git history available (e.g. shallow clones in CI).
+
+```ts
+import { getLastModFromGithub, vikeSitemap } from "vike-sitemap-generator";
+
+vikeSitemap({
+  baseUrl: "https://example.com",
+  lastmod: async (url) => {
+    const filePath =
+      url === "/" ? "pages/index/+Page.tsx" : `pages${url}/+Page.tsx`;
+    return getLastModFromGithub({
+      token: process.env.GH_TOKEN!,
+      repo: "owner/repo",
+      filePath,
+    });
+  },
+});
+```
+
+Options:
+- `token` (string, required) -- GitHub personal access token with repo read access
+- `repo` (string, required) -- Repository in `owner/repo` format
+- `filePath` (string, required) -- Path to the file in the repository
+
+Returns the date of the most recent commit as `YYYY-MM-DD`, or `undefined` if the API returns non-OK, the file has no commits, or the request fails.
+
+## TypeScript types
+
+### Exported from `vike-sitemap-generator`
+
+```ts
+// Main plugin
+function vikeSitemap(options: SitemapPluginOptions): Plugin;
+
+// Fetchers
+function getLastModFromGit(options: { filePath: string; cwd?: string }): Promise<string | undefined>;
+function getLastModFromGithub(options: { token: string; repo: string; filePath: string }): Promise<string | undefined>;
+
+// Types
+interface SitemapPluginOptions {
+  baseUrl: string;
+  outFile?: string;
+  outDir?: string;
+  trailingSlash?: TrailingSlashConfig;
+  lastmod?: (url: string) => Promise<string | undefined> | string | undefined;
+  priority?: PriorityConfig;
+  changefreq?: ChangefreqConfig;
+  images?: (url: string) => Promise<SitemapImage[] | undefined> | SitemapImage[] | undefined;
+  additionalUrls?: string[];
+  exclude?: (string | RegExp)[];
+  concurrency?: number;
+  maxUrlsPerSitemap?: number;
+  robots?: boolean;
+  dryRun?: boolean;
+}
+
+interface SitemapPageConfig {
+  priority?: number;
+  changefreq?: Changefreq;
+  lastmod?: string;
+  images?: SitemapImage[];
+  exclude?: boolean;
+}
+
+interface SitemapImage {
+  loc: string;
+  caption?: string;
+  geoLocation?: string;
+  title?: string;
+  license?: string;
+}
+
+interface SitemapEntry {
+  loc: string;
+  lastmod?: string;
+  priority?: number;
+  changefreq?: Changefreq;
+  images?: SitemapImage[];
+}
+
+interface SitemapContext {
+  urls: string[];
+}
+
+interface CollectedUrl {
+  url: string;
+  pageConfig?: SitemapPageConfig;
+}
+
+type Changefreq = "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
+
+type PriorityConfig = number | PriorityRule[] | PriorityFn;
+type PriorityFn = (url: string, context: SitemapContext) => number | undefined;
+interface PriorityRule { match: string | RegExp; priority: number; }
+
+type ChangefreqConfig = Changefreq | ChangefreqRule[];
+interface ChangefreqRule { match: string | RegExp; changefreq: Changefreq; }
+
+type TrailingSlashConfig = boolean | TrailingSlashRule[] | TrailingSlashFn;
+type TrailingSlashFn = (url: string, context: SitemapContext) => boolean;
+interface TrailingSlashRule { match: string | RegExp; trailingSlash: boolean; }
+```
+
+### Exported from `vike-sitemap-generator/config`
+
+```ts
+// Default export: Vike extension config
+export default {
+  name: "vike-sitemap-generator",
+  meta: {
+    sitemap: {
+      env: { config: true },
+    },
+  },
+} satisfies Config;
+
+// Augments Vike.Config globally:
+declare global {
+  namespace Vike {
+    interface Config {
+      sitemap?: SitemapPageConfig;
+    }
+  }
+}
+```
+
+## How it works
+
+The plugin hooks into Vite's build pipeline and only runs during the client build (the SSR build is skipped to avoid duplicate writes).
+
+1. `configResolved` -- reads Vike's page configuration via `getVikeConfig()`, including per-page `+sitemap.ts` metadata.
+2. `closeBundle` (client build only):
+   - Collects URLs from `prerenderContext` (SSG) or static route patterns (SSR)
+   - Attaches per-page `+sitemap.ts` config to each URL
+   - Filters out excluded paths (global `exclude` patterns and per-page `exclude: true`)
+   - Applies trailing slash rules
+   - Resolves metadata (`lastmod`, `priority`, `changefreq`, `images`) in parallel with the configured concurrency, merging per-page values over global callbacks
+   - Splits into multiple sitemap files if the URL count exceeds `maxUrlsPerSitemap`
+   - Writes files to the resolved output directory (or logs in dry-run mode)
+   - Appends a `Sitemap:` directive to `robots.txt` if enabled
+
+## Options summary table
+
+| Option              | Type                                          | Default        | Description                                                       |
+| ------------------- | --------------------------------------------- | -------------- | ----------------------------------------------------------------- |
+| `baseUrl`           | `string`                                      | (required)     | Base URL (e.g. `"https://example.com"`)                           |
+| `outFile`           | `string`                                      | `"sitemap.xml"`| Output filename relative to outDir                                |
+| `outDir`            | `string`                                      | Vite's outDir  | Independent output directory                                      |
+| `trailingSlash`     | `boolean \| TrailingSlashRule[] \| function`   | `undefined`    | Trailing slash configuration                                      |
+| `lastmod`           | `(url: string) => string \| undefined`        | `undefined`    | Async callback for `<lastmod>`                                    |
+| `priority`          | `number \| PriorityRule[] \| function`         | `undefined`    | Priority configuration                                            |
+| `changefreq`        | `Changefreq \| ChangefreqRule[]`               | `undefined`    | Change frequency configuration                                    |
+| `images`            | `(url: string) => SitemapImage[] \| undefined` | `undefined`    | Async callback for `<image:image>`                                |
+| `additionalUrls`    | `string[]`                                    | `[]`           | Extra URLs to include                                             |
+| `exclude`           | `(string \| RegExp)[]`                         | `[]`           | URL patterns to exclude                                           |
+| `concurrency`       | `number`                                      | `10`           | Max concurrent metadata resolutions                               |
+| `maxUrlsPerSitemap` | `number`                                      | `50000`        | Threshold for sitemap index splitting                             |
+| `robots`            | `boolean`                                     | `false`        | Append `Sitemap:` directive to robots.txt                         |
+| `dryRun`            | `boolean`                                     | `false`        | Log XML to console without writing files                          |
