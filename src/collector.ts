@@ -1,11 +1,13 @@
 import type { getVikeConfig } from "vike/plugin";
+import type { CollectedUrl, SitemapPageConfig } from "./types.ts";
 
 type VikeConfig = ReturnType<typeof getVikeConfig>;
 
 /**
- * Collects URL paths from Vike's build output.
+ * Collects URL paths from Vike's build output along with per-page sitemap config.
  *
- * - SSG (prerender enabled): uses prerenderContext for fully resolved URLs
+ * - SSG (prerender enabled): uses prerenderContext for fully resolved URLs,
+ *   looks up the matching page config for per-page sitemap metadata.
  * - SSR fallback: uses page route patterns, excluding parameterized routes (containing `@`)
  *   and error pages
  *
@@ -14,29 +16,62 @@ type VikeConfig = ReturnType<typeof getVikeConfig>;
 export function collectUrls(
 	vikeConfig: VikeConfig,
 	additionalUrls: string[],
-): string[] {
-	const urls = new Set<string>();
+): CollectedUrl[] {
+	const urlMap = new Map<string, CollectedUrl>();
 
 	const prerendered = vikeConfig.prerenderContext?.pageContexts;
 	if (prerendered && prerendered.length > 0) {
+		const pageConfigByRoute = buildPageConfigMap(vikeConfig);
 		for (const ctx of prerendered) {
-			urls.add(normalizeUrlPath(ctx.urlOriginal));
+			const url = normalizeUrlPath(ctx.urlOriginal);
+			if (!urlMap.has(url)) {
+				urlMap.set(url, {
+					url,
+					pageConfig: pageConfigByRoute.get(url),
+				});
+			}
 		}
 	} else {
 		for (const page of Object.values(vikeConfig.pages)) {
 			if (page.isErrorPage) continue;
 			const route = page.route;
 			if (typeof route === "string" && !route.includes("@")) {
-				urls.add(normalizeUrlPath(route));
+				const url = normalizeUrlPath(route);
+				if (!urlMap.has(url)) {
+					const pageConfig = (page.config as Record<string, unknown>).sitemap as
+						| SitemapPageConfig
+						| undefined;
+					urlMap.set(url, { url, pageConfig });
+				}
 			}
 		}
 	}
 
 	for (const url of additionalUrls) {
-		urls.add(normalizeUrlPath(url));
+		const normalized = normalizeUrlPath(url);
+		if (!urlMap.has(normalized)) {
+			urlMap.set(normalized, { url: normalized });
+		}
 	}
 
-	return [...urls].sort();
+	return [...urlMap.values()].sort((a, b) => a.url.localeCompare(b.url));
+}
+
+function buildPageConfigMap(
+	vikeConfig: VikeConfig,
+): Map<string, SitemapPageConfig | undefined> {
+	const map = new Map<string, SitemapPageConfig | undefined>();
+	for (const page of Object.values(vikeConfig.pages)) {
+		if (page.isErrorPage) continue;
+		const route = page.route;
+		if (typeof route === "string") {
+			const pageConfig = (page.config as Record<string, unknown>).sitemap as
+				| SitemapPageConfig
+				| undefined;
+			map.set(normalizeUrlPath(route), pageConfig);
+		}
+	}
+	return map;
 }
 
 function normalizeUrlPath(url: string): string {

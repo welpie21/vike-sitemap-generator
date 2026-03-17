@@ -3,11 +3,14 @@
 Vite plugin for [Vike](https://vike.dev) that automatically generates a
 `sitemap.xml` at build time.
 
-- Collects all page URLs from Vike's prerender context (SSG) or route config
-  (SSR)
-- Configurable output path, trailing slashes, `<lastmod>`, `<priority>`,
-  `<changefreq>`, and `<image:image>`
-- Exclude paths by exact string or regex pattern
+- Collects page URLs from Vike's prerender context (SSG) or route config (SSR)
+- Per-page metadata via co-located `+sitemap.ts` files (Vike extension)
+- Parallel metadata resolution with configurable concurrency
+- Automatic sitemap index splitting for large sites (50,000+ URLs)
+- Configurable trailing slashes, `<lastmod>`, `<priority>`, `<changefreq>`, and
+  `<image:image>`
+- Exclude paths by exact string, regex, or per-page config
+- Optional `robots.txt` integration and dry-run mode
 
 ## Install
 
@@ -21,7 +24,9 @@ pnpm add vike-sitemap-generator
 
 Requires `vike >= 0.4.0` and `vite >= 5.0.0` as peer dependencies.
 
-## Basic Usage
+## Quick start
+
+Add the plugin to your Vite config:
 
 ```ts
 // vite.config.ts
@@ -38,9 +43,51 @@ export default {
 };
 ```
 
-This generates a `sitemap.xml` in your build output directory after every build.
+This generates a `sitemap.xml` in your build output directory after the client
+build completes.
+
+## Per-page metadata with `+sitemap.ts`
+
+You can co-locate sitemap metadata alongside your pages using Vike's extension
+system. First, register the extension in your root config:
+
+```ts
+// pages/+config.ts
+import vikeSitemapConfig from "vike-sitemap-generator/config";
+
+export default {
+	extends: [vikeSitemapConfig],
+};
+```
+
+Then create `+sitemap.ts` files in any page directory:
+
+```ts
+// pages/about/+sitemap.ts
+import type { SitemapPageConfig } from "vike-sitemap-generator";
+
+export default {
+	priority: 0.8,
+	changefreq: "monthly",
+	lastmod: "2025-06-15",
+} satisfies SitemapPageConfig;
+```
+
+Per-page values take precedence over global plugin options. You can also exclude
+a page from the sitemap:
+
+```ts
+// pages/admin/+sitemap.ts
+export default {
+	exclude: true,
+};
+```
+
+See the [Per-page metadata guide](docs/per-page-metadata.md) for details.
 
 ## Options
+
+All options are passed to `vikeSitemap()` in your Vite config.
 
 ### `baseUrl` (required)
 
@@ -52,8 +99,8 @@ vikeSitemap({ baseUrl: "https://example.com" });
 
 ### `outFile`
 
-Path for the generated sitemap, relative to the build output directory. Defaults
-to `"sitemap.xml"`.
+Path for the generated sitemap, relative to the output directory. Defaults to
+`"sitemap.xml"`.
 
 ```ts
 vikeSitemap({
@@ -62,13 +109,23 @@ vikeSitemap({
 });
 ```
 
+### `outDir`
+
+Output directory independent of Vite's `build.outDir`. Accepts an absolute path
+or a path relative to your project root. When omitted, falls back to the client
+build's output directory.
+
+```ts
+vikeSitemap({
+	baseUrl: "https://example.com",
+	outDir: "dist/public",
+});
+```
+
 ### `trailingSlash`
 
-Configure trailing slashes on URLs in the sitemap. Accepts a single boolean
-(applied to all routes), an array of rules evaluated in order (first match
-wins), or a function for dynamic control.
-
-Rules support exact path strings or RegExp patterns.
+Configure trailing slashes on URLs in the sitemap. Accepts a boolean, an array
+of rules (first match wins), or a function.
 
 ```ts
 // Add trailing slash to all URLs
@@ -77,71 +134,47 @@ vikeSitemap({ baseUrl: "...", trailingSlash: true });
 // Remove trailing slash from all URLs
 vikeSitemap({ baseUrl: "...", trailingSlash: false });
 
-// Per-route rules
+// Per-route rules (exact strings or RegExp)
 vikeSitemap({
 	baseUrl: "...",
 	trailingSlash: [
-		{ match: /^\/blog/, trailingSlash: true }, // /blog/my-post → /blog/my-post/
-		{ match: /^\/docs/, trailingSlash: false }, // /docs/intro/ → /docs/intro
+		{ match: /^\/blog/, trailingSlash: true },
+		{ match: /^\/docs/, trailingSlash: false },
 	],
 });
-```
 
-Routes that don't match any rule are left unchanged when using per-route rules.
-
-#### Function
-
-A function receives each URL and a `SitemapContext` containing all collected
-URLs. Return `true` to add a trailing slash or `false` to remove it.
-
-This is useful for automatically adding trailing slashes to URLs that have child
-routes (siblings) while removing them from leaf URLs.
-
-```ts
-import { type SitemapContext, vikeSitemap } from "vike-sitemap-generator";
-
+// Function with access to all URLs
 vikeSitemap({
 	baseUrl: "...",
 	trailingSlash: (url, { urls }) => {
-		// Add trailing slash if this URL has child routes
 		return urls.some((u) => u !== url && u.startsWith(`${url}/`));
 	},
 });
-// Given ["/", "/blog", "/blog/post-1", "/about"]:
-//   "/" stays "/"
-//   "/blog" → "/blog/"  (has children)
-//   "/blog/post-1" stays "/blog/post-1"  (leaf)
-//   "/about" stays "/about"  (leaf)
 ```
 
 ### `lastmod`
 
-An async callback to resolve `<lastmod>` for each URL. Receives the URL path
-(e.g. `"/about"`) and should return an ISO 8601 date string, or `undefined` to
-omit.
+Async callback to resolve `<lastmod>` for each URL. Receives the URL path and
+should return an ISO 8601 date string, or `undefined` to omit.
 
 ```ts
 vikeSitemap({
 	baseUrl: "...",
 	lastmod: async (url) => {
-		// Fetch from a CMS, database, or file system
 		const res = await fetch(`https://cms.example.com/meta?path=${url}`);
 		const data = await res.json();
-		return data.updatedAt; // e.g. "2025-06-15"
+		return data.updatedAt;
 	},
 });
 ```
 
 ### `priority`
 
-Configure `<priority>` per route. Accepts a single number (applied to all
-routes), an array of rules evaluated in order (first match wins), or a function
-for dynamic control.
-
-Rules support exact path strings or RegExp patterns.
+Configure `<priority>` per route. Accepts a number, an array of rules (first
+match wins), or a function.
 
 ```ts
-// Same priority for all routes
+// Uniform priority
 vikeSitemap({ baseUrl: "...", priority: 0.5 });
 
 // Per-route rules
@@ -150,25 +183,10 @@ vikeSitemap({
 	priority: [
 		{ match: "/", priority: 1.0 },
 		{ match: /^\/blog/, priority: 0.8 },
-		{ match: /^\/docs/, priority: 0.7 },
 	],
 });
-```
 
-Routes that don't match any rule will have `<priority>` omitted from the
-sitemap.
-
-#### Function
-
-A function receives each URL and a `SitemapContext` containing all collected
-URLs. Return a number between 0.0 and 1.0, or `undefined` to omit priority.
-
-This is useful for computing priority dynamically based on the URL structure,
-such as giving higher priority to URLs with child routes.
-
-```ts
-import { type SitemapContext, vikeSitemap } from "vike-sitemap-generator";
-
+// Function
 vikeSitemap({
 	baseUrl: "...",
 	priority: (url, { urls }) => {
@@ -178,25 +196,17 @@ vikeSitemap({
 		return hasChildren ? 0.8 : 0.5;
 	},
 });
-// Given ["/", "/blog", "/blog/post-1", "/about"]:
-//   "/" → 0.8  (has children)
-//   "/blog" → 0.8  (has children)
-//   "/blog/post-1" → 0.5  (leaf)
-//   "/about" → 0.5  (leaf)
 ```
 
 ### `changefreq`
 
-Configure `<changefreq>` per route. Accepts a single value (applied to all
-routes) or an array of rules evaluated in order — first match wins.
+Configure `<changefreq>` per route. Accepts a single value or an array of
+rules.
 
-Valid values are: `"always"`, `"hourly"`, `"daily"`, `"weekly"`, `"monthly"`,
+Valid values: `"always"`, `"hourly"`, `"daily"`, `"weekly"`, `"monthly"`,
 `"yearly"`, `"never"`.
 
-Rules support exact path strings or RegExp patterns.
-
 ```ts
-// Same changefreq for all routes
 vikeSitemap({ baseUrl: "...", changefreq: "weekly" });
 
 // Per-route rules
@@ -210,29 +220,18 @@ vikeSitemap({
 });
 ```
 
-Routes that don't match any rule will have `<changefreq>` omitted from the
-sitemap.
-
 ### `images`
 
-An async callback to resolve `<image:image>` entries for each URL
+Async callback to resolve `<image:image>` entries for each URL
 ([Google Image Sitemap extension](https://developers.google.com/search/docs/crawling-indexing/sitemaps/image-sitemaps)).
-Receives the URL path (e.g. `"/about"`) and should return an array of
-`SitemapImage` objects, or `undefined` to omit.
-
-When any entry has images, the `image` XML namespace is automatically added to
-the `<urlset>`.
 
 ```ts
-import { type SitemapImage, vikeSitemap } from "vike-sitemap-generator";
-
 vikeSitemap({
 	baseUrl: "...",
 	images: async (url) => {
-		// Fetch from a CMS, database, or file system
 		const res = await fetch(`https://cms.example.com/images?path=${url}`);
 		const data = await res.json();
-		return data.images.map((img: any) => ({
+		return data.images.map((img) => ({
 			loc: img.url,
 			title: img.alt,
 		}));
@@ -252,8 +251,8 @@ Each `SitemapImage` object supports:
 
 ### `additionalUrls`
 
-Explicitly include URLs that Vike can't discover automatically — useful for SSR
-apps with parameterized routes (e.g. `/product/@id`) that aren't prerendered.
+Include URLs that Vike can't discover automatically, such as SSR apps with
+parameterized routes that aren't prerendered.
 
 ```ts
 vikeSitemap({
@@ -271,107 +270,169 @@ string or a RegExp pattern.
 vikeSitemap({
 	baseUrl: "...",
 	exclude: [
-		"/admin", // exact match — excludes only /admin
-		/^\/internal/, // regex — excludes /internal, /internal/dashboard, etc.
+		"/admin",
+		/^\/internal/,
 	],
 });
 ```
 
-String entries use exact matching, so `"/admin"` will not exclude
-`"/admin/settings"`. Use a RegExp like `/^\/admin/` to exclude an entire
-subtree.
+String entries use exact matching. Use a RegExp like `/^\/admin/` to exclude an
+entire subtree.
+
+### `concurrency`
+
+Maximum number of concurrent metadata resolutions. Defaults to `10`. Set to
+`Infinity` for unlimited parallelism.
+
+When `lastmod` or `images` callbacks involve async I/O (git commands, API calls,
+CMS fetches), this controls how many run in parallel.
+
+```ts
+vikeSitemap({
+	baseUrl: "...",
+	lastmod: async (url) => { /* ... */ },
+	concurrency: 20,
+});
+```
+
+### `maxUrlsPerSitemap`
+
+Maximum URLs per sitemap file. When exceeded, the plugin automatically splits
+into multiple numbered sitemap files and generates a sitemap index. Defaults to
+`50000` (the sitemap protocol limit).
+
+```ts
+vikeSitemap({
+	baseUrl: "...",
+	maxUrlsPerSitemap: 10000,
+});
+```
+
+This produces `sitemap-0.xml`, `sitemap-1.xml`, ..., and a `sitemap.xml` index
+that references them.
+
+### `robots`
+
+When enabled, appends a `Sitemap:` directive to `robots.txt` in the output
+directory, pointing to the generated sitemap. Creates the file if it doesn't
+exist. Avoids duplicate entries. Defaults to `false`.
+
+```ts
+vikeSitemap({
+	baseUrl: "https://example.com",
+	robots: true,
+});
+```
+
+### `dryRun`
+
+When enabled, logs the generated XML to the console without writing any files.
+Useful for debugging. Defaults to `false`.
+
+```ts
+vikeSitemap({
+	baseUrl: "https://example.com",
+	dryRun: true,
+});
+```
 
 ## Fetchers
 
+Built-in helpers for resolving `<lastmod>` from git history.
+
 ### `getLastModFromGit`
 
-A helper that gets the last commit date for a file from the local git history.
-Useful as a `lastmod` callback when your pages are in the same repository as
-your build.
+Gets the last commit date for a file from the local git history.
 
 ```ts
 import { getLastModFromGit, vikeSitemap } from "vike-sitemap-generator";
 
-export default {
-	plugins: [
-		vikeSitemap({
-			baseUrl: "https://example.com",
-			lastmod: async (url) => {
-				const filePath = url === "/"
-					? "pages/index/+Page.tsx"
-					: `pages${url}/+Page.tsx`;
-
-				return getLastModFromGit({ filePath });
-			},
-		}),
-	],
-};
+vikeSitemap({
+	baseUrl: "https://example.com",
+	lastmod: async (url) => {
+		const filePath =
+			url === "/" ? "pages/index/+Page.tsx" : `pages${url}/+Page.tsx`;
+		return getLastModFromGit({ filePath });
+	},
+});
 ```
 
-#### Options
+| Parameter  | Type     | Description                                              |
+| ---------- | -------- | -------------------------------------------------------- |
+| `filePath` | `string` | Path to the file relative to `cwd`                       |
+| `cwd`      | `string` | _(optional)_ Working directory. Defaults to `process.cwd()` |
 
-| Parameter  | Type     | Description                                                                     |
-| ---------- | -------- | ------------------------------------------------------------------------------- |
-| `filePath` | `string` | Path to the file (relative to `cwd`) to get the last commit date for            |
-| `cwd`      | `string` | _(optional)_ Working directory for the git command. Defaults to `process.cwd()` |
-
-Returns the date of the most recent commit touching that file as a `YYYY-MM-DD`
-string, or `undefined` if the file has no commits or git is unavailable.
+Returns `YYYY-MM-DD` or `undefined`.
 
 ### `getLastModFromGithub`
 
-A helper that fetches the last commit date for a file from the GitHub API.
-Useful as a `lastmod` callback when your pages are tracked in a GitHub
-repository.
+Fetches the last commit date for a file from the GitHub API.
 
 ```ts
 import { getLastModFromGithub, vikeSitemap } from "vike-sitemap-generator";
 
-export default {
-	plugins: [
-		vikeSitemap({
-			baseUrl: "https://example.com",
-			lastmod: async (url) => {
-				const filePath = url === "/"
-					? "pages/index/+Page.tsx"
-					: `pages${url}/+Page.tsx`;
-
-				return getLastModFromGithub({
-					token: process.env.GH_TOKEN!,
-					repo: "owner/repo",
-					filePath,
-				});
-			},
-		}),
-	],
-};
+vikeSitemap({
+	baseUrl: "https://example.com",
+	lastmod: async (url) => {
+		const filePath =
+			url === "/" ? "pages/index/+Page.tsx" : `pages${url}/+Page.tsx`;
+		return getLastModFromGithub({
+			token: process.env.GH_TOKEN!,
+			repo: "owner/repo",
+			filePath,
+		});
+	},
+});
 ```
 
-#### Options
+| Parameter  | Type     | Description                                                |
+| ---------- | -------- | ---------------------------------------------------------- |
+| `token`    | `string` | GitHub personal access token (needs repo read access)      |
+| `repo`     | `string` | Repository in `owner/repo` format                          |
+| `filePath` | `string` | Path to the file in the repository                         |
 
-| Parameter  | Type     | Description                                                        |
-| ---------- | -------- | ------------------------------------------------------------------ |
-| `token`    | `string` | GitHub personal access token (needs repo read access)              |
-| `repo`     | `string` | Repository in `owner/repo` format                                  |
-| `filePath` | `string` | Path to the file in the repository to get the last commit date for |
+Returns `YYYY-MM-DD` or `undefined`.
 
-Returns the date of the most recent commit touching that file as a `YYYY-MM-DD`
-string, or `undefined` if the file has no commits or the request fails.
+## How it works
 
-## How It Works
+The plugin hooks into Vite's build pipeline and only runs during the client
+build (the SSR build is skipped to avoid duplicate writes).
 
-The plugin hooks into Vite's build pipeline:
+1. **`configResolved`** -- reads Vike's page configuration via
+   `getVikeConfig()`, including per-page `+sitemap.ts` metadata
+2. **`closeBundle`** (client build only) --
+   - Collects URLs from `prerenderContext` (SSG) or static route patterns (SSR)
+   - Attaches per-page `+sitemap.ts` config to each URL
+   - Filters out excluded paths (global `exclude` patterns and per-page
+     `exclude: true`)
+   - Applies trailing slash rules
+   - Resolves metadata (`lastmod`, `priority`, `changefreq`, `images`) in
+     parallel with the configured concurrency, merging per-page values over
+     global callbacks
+   - Splits into multiple sitemap files if the URL count exceeds
+     `maxUrlsPerSitemap`
+   - Writes files to the resolved output directory (or logs in dry-run mode)
+   - Appends a `Sitemap:` directive to `robots.txt` if enabled
 
-1. **`configResolved`** — reads Vike's page configuration via `getVikeConfig()`
-2. **`closeBundle`** — after the build completes:
-   - If prerendering is enabled (SSG), collects all resolved URLs from
-     `prerenderContext`
-   - Otherwise, extracts static route patterns from Vike's page config
-     (parameterized routes containing `@` are excluded)
-   - Merges in any `additionalUrls`
-   - Filters out paths matching `exclude` patterns
-   - Applies trailing slash rules, resolves `<lastmod>`, `<priority>`,
-     `<changefreq>`, and `<image:image>`, and writes the XML
+## Guides
+
+- [Per-page metadata](docs/per-page-metadata.md) -- co-locate sitemap config
+  with your pages using `+sitemap.ts`
+- [Sitemap index](docs/sitemap-index.md) -- automatic splitting for large sites
+- [robots.txt integration](docs/robots-txt.md) -- auto-manage the `Sitemap:`
+  directive
+- [Custom output directory](docs/custom-output-directory.md) -- write the
+  sitemap independently of Vite's build output
+- [Images](docs/images.md) -- add `<image:image>` entries for Google Image
+  Sitemaps
+- [Trailing slashes](docs/trailing-slashes.md) -- per-route and dynamic trailing
+  slash rules
+- [Lastmod from git](docs/lastmod-from-git.md) -- resolve `<lastmod>` from
+  local git or GitHub API
+- [Dry-run mode](docs/dry-run.md) -- preview sitemap output without writing
+  files
+- [Parallel resolution](docs/parallel-resolution.md) -- tune concurrency for
+  async metadata callbacks
 
 ## License
 

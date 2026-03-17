@@ -1,16 +1,27 @@
 import { describe, expect, test } from "bun:test";
 import { applyTrailingSlashes } from "../src/transformer.ts";
+import type { CollectedUrl } from "../src/types.ts";
+
+function toCollected(urls: string[]): CollectedUrl[] {
+	return urls.map((url) => ({ url }));
+}
+
+function toUrls(items: CollectedUrl[]): string[] {
+	return items.map((item) => item.url);
+}
 
 describe("applyTrailingSlashes", () => {
 	const urls = ["/", "/about", "/blog/post"];
 
 	test("returns urls unchanged when config is undefined", () => {
-		expect(applyTrailingSlashes(urls, undefined)).toEqual(urls);
+		expect(toUrls(applyTrailingSlashes(toCollected(urls), undefined))).toEqual(
+			urls,
+		);
 	});
 
 	describe("boolean config", () => {
 		test("adds trailing slashes when true", () => {
-			expect(applyTrailingSlashes(urls, true)).toEqual([
+			expect(toUrls(applyTrailingSlashes(toCollected(urls), true))).toEqual([
 				"/",
 				"/about/",
 				"/blog/post/",
@@ -18,42 +29,49 @@ describe("applyTrailingSlashes", () => {
 		});
 
 		test("does not double trailing slashes", () => {
-			expect(applyTrailingSlashes(["/about/"], true)).toEqual(["/about/"]);
+			expect(
+				toUrls(applyTrailingSlashes(toCollected(["/about/"]), true)),
+			).toEqual(["/about/"]);
 		});
 
 		test("removes trailing slashes when false", () => {
-			expect(applyTrailingSlashes(["/", "/about/", "/blog/"], false)).toEqual([
-				"/",
-				"/about",
-				"/blog",
-			]);
+			expect(
+				toUrls(
+					applyTrailingSlashes(toCollected(["/", "/about/", "/blog/"]), false),
+				),
+			).toEqual(["/", "/about", "/blog"]);
 		});
 
 		test("keeps root slash unchanged regardless of config", () => {
-			expect(applyTrailingSlashes(["/"], true)).toEqual(["/"]);
-			expect(applyTrailingSlashes(["/"], false)).toEqual(["/"]);
+			expect(toUrls(applyTrailingSlashes(toCollected(["/"]), true))).toEqual([
+				"/",
+			]);
+			expect(toUrls(applyTrailingSlashes(toCollected(["/"]), false))).toEqual([
+				"/",
+			]);
 		});
 
 		test("does not strip from paths without trailing slash when false", () => {
-			expect(applyTrailingSlashes(["/about"], false)).toEqual(["/about"]);
+			expect(
+				toUrls(applyTrailingSlashes(toCollected(["/about"]), false)),
+			).toEqual(["/about"]);
 		});
 	});
 
 	describe("per-route rules config", () => {
 		test("applies exact path match", () => {
-			const result = applyTrailingSlashes(
-				["/about", "/blog"],
-				[{ match: "/about", trailingSlash: true }],
-			);
-			expect(result).toEqual(["/about/", "/blog"]);
+			const result = applyTrailingSlashes(toCollected(["/about", "/blog"]), [
+				{ match: "/about", trailingSlash: true },
+			]);
+			expect(toUrls(result)).toEqual(["/about/", "/blog"]);
 		});
 
 		test("applies regex pattern matching", () => {
 			const result = applyTrailingSlashes(
-				["/blog", "/blog/post-1", "/blog/post-2", "/docs"],
+				toCollected(["/blog", "/blog/post-1", "/blog/post-2", "/docs"]),
 				[{ match: /^\/blog(\/|$)/, trailingSlash: true }],
 			);
-			expect(result).toEqual([
+			expect(toUrls(result)).toEqual([
 				"/blog/",
 				"/blog/post-1/",
 				"/blog/post-2/",
@@ -62,40 +80,39 @@ describe("applyTrailingSlashes", () => {
 		});
 
 		test("leaves unmatched paths unchanged", () => {
-			const result = applyTrailingSlashes(
-				["/about", "/contact"],
-				[{ match: /^\/blog/, trailingSlash: true }],
-			);
-			expect(result).toEqual(["/about", "/contact"]);
+			const result = applyTrailingSlashes(toCollected(["/about", "/contact"]), [
+				{ match: /^\/blog/, trailingSlash: true },
+			]);
+			expect(toUrls(result)).toEqual(["/about", "/contact"]);
 		});
 
 		test("first matching rule wins", () => {
-			const result = applyTrailingSlashes(
-				["/blog/post"],
-				[
-					{ match: /^\/blog/, trailingSlash: true },
-					{ match: "/blog/post", trailingSlash: false },
-				],
-			);
-			expect(result).toEqual(["/blog/post/"]);
+			const result = applyTrailingSlashes(toCollected(["/blog/post"]), [
+				{ match: /^\/blog/, trailingSlash: true },
+				{ match: "/blog/post", trailingSlash: false },
+			]);
+			expect(toUrls(result)).toEqual(["/blog/post/"]);
 		});
 
 		test("can remove trailing slashes per-route", () => {
 			const result = applyTrailingSlashes(
-				["/api/", "/api/users/"],
+				toCollected(["/api/", "/api/users/"]),
 				[{ match: /^\/api/, trailingSlash: false }],
 			);
-			expect(result).toEqual(["/api", "/api/users"]);
+			expect(toUrls(result)).toEqual(["/api", "/api/users"]);
 		});
 	});
 
 	describe("function config", () => {
 		test("adds trailing slash when URL has children", () => {
 			const allUrls = ["/", "/blog", "/blog/post-1", "/blog/post-2", "/about"];
-			const result = applyTrailingSlashes(allUrls, (url, { urls }) => {
-				return urls.some((u) => u !== url && u.startsWith(`${url}/`));
-			});
-			expect(result).toEqual([
+			const result = applyTrailingSlashes(
+				toCollected(allUrls),
+				(url, { urls }) => {
+					return urls.some((u) => u !== url && u.startsWith(`${url}/`));
+				},
+			);
+			expect(toUrls(result)).toEqual([
 				"/",
 				"/blog/",
 				"/blog/post-1",
@@ -106,20 +123,23 @@ describe("applyTrailingSlashes", () => {
 
 		test("removes trailing slash for leaf URLs", () => {
 			const allUrls = ["/blog/", "/blog/post/", "/about/"];
-			const result = applyTrailingSlashes(allUrls, (url, { urls }) => {
-				const normalized = url.endsWith("/") ? url.slice(0, -1) : url;
-				return urls.some((u) => {
-					const n = u.endsWith("/") ? u.slice(0, -1) : u;
-					return n !== normalized && n.startsWith(`${normalized}/`);
-				});
-			});
-			expect(result).toEqual(["/blog/", "/blog/post", "/about"]);
+			const result = applyTrailingSlashes(
+				toCollected(allUrls),
+				(url, { urls }) => {
+					const normalized = url.endsWith("/") ? url.slice(0, -1) : url;
+					return urls.some((u) => {
+						const n = u.endsWith("/") ? u.slice(0, -1) : u;
+						return n !== normalized && n.startsWith(`${normalized}/`);
+					});
+				},
+			);
+			expect(toUrls(result)).toEqual(["/blog/", "/blog/post", "/about"]);
 		});
 
 		test("receives correct context with all URLs", () => {
 			const allUrls = ["/a", "/b", "/c"];
 			let receivedContext: { urls: string[] } | undefined;
-			applyTrailingSlashes(allUrls, (_url, context) => {
+			applyTrailingSlashes(toCollected(allUrls), (_url, context) => {
 				receivedContext = context;
 				return false;
 			});
@@ -127,8 +147,21 @@ describe("applyTrailingSlashes", () => {
 		});
 
 		test("keeps root slash unchanged", () => {
-			const result = applyTrailingSlashes(["/", "/about"], () => true);
-			expect(result).toEqual(["/", "/about/"]);
+			const result = applyTrailingSlashes(
+				toCollected(["/", "/about"]),
+				() => true,
+			);
+			expect(toUrls(result)).toEqual(["/", "/about/"]);
 		});
+	});
+
+	test("preserves pageConfig through transformation", () => {
+		const items: CollectedUrl[] = [
+			{ url: "/about", pageConfig: { priority: 0.8 } },
+			{ url: "/blog" },
+		];
+		const result = applyTrailingSlashes(items, true);
+		expect(result[0]?.pageConfig).toEqual({ priority: 0.8 });
+		expect(result[0]?.url).toBe("/about/");
 	});
 });

@@ -1,0 +1,103 @@
+# Per-page metadata
+
+Co-locate sitemap metadata alongside your pages using Vike's `+sitemap.ts`
+files. Per-page values take precedence over global plugin options.
+
+## Setup
+
+Register the Vike extension in your root page config:
+
+```ts
+// pages/+config.ts
+import vikeSitemapConfig from "vike-sitemap-generator/config";
+
+export default {
+	extends: [vikeSitemapConfig],
+};
+```
+
+This registers `sitemap` as a recognized Vike setting, enabling `+sitemap.ts`
+files throughout your page tree.
+
+## Defining per-page metadata
+
+Create a `+sitemap.ts` (or `+sitemap.js`) file in any page directory. Export a
+default object matching the `SitemapPageConfig` interface:
+
+```ts
+// pages/about/+sitemap.ts
+import type { SitemapPageConfig } from "vike-sitemap-generator";
+
+export default {
+	priority: 0.8,
+	changefreq: "monthly",
+	lastmod: "2025-06-15",
+} satisfies SitemapPageConfig;
+```
+
+### Available fields
+
+| Field        | Type              | Description                                     |
+| ------------ | ----------------- | ----------------------------------------------- |
+| `priority`   | `number`          | `<priority>` value between 0.0 and 1.0          |
+| `changefreq` | `Changefreq`      | `<changefreq>` value (e.g. `"weekly"`)           |
+| `lastmod`    | `string`          | `<lastmod>` ISO 8601 date string                |
+| `images`     | `SitemapImage[]`  | Array of image objects for `<image:image>`       |
+| `exclude`    | `boolean`         | When `true`, excludes the page from the sitemap |
+
+## Excluding pages
+
+Set `exclude: true` to remove a page from the sitemap entirely:
+
+```ts
+// pages/admin/+sitemap.ts
+export default {
+	exclude: true,
+};
+```
+
+This is equivalent to adding the path to the global `exclude` option, but
+co-located with the page itself.
+
+## Precedence rules
+
+Per-page values always override global options:
+
+- If a `+sitemap.ts` sets `priority: 0.9` and the global plugin sets
+  `priority: 0.5`, the page gets `0.9`.
+- If a `+sitemap.ts` sets `lastmod: "2024-01-01"` and a global `lastmod`
+  callback returns `"2025-06-15"`, the page gets `"2024-01-01"`.
+- If a `+sitemap.ts` sets `images`, the global `images` callback is not called
+  for that URL.
+- Fields not set in `+sitemap.ts` fall through to the global callbacks/rules.
+
+## Per-page images
+
+You can attach image metadata directly to a page:
+
+```ts
+// pages/gallery/+sitemap.ts
+export default {
+	images: [
+		{
+			loc: "https://example.com/photos/sunset.jpg",
+			title: "Sunset over the ocean",
+			caption: "A beautiful sunset photographed at Malibu Beach",
+		},
+		{
+			loc: "https://example.com/photos/mountain.jpg",
+			title: "Mountain landscape",
+		},
+	],
+};
+```
+
+## SSG vs SSR behavior
+
+- **SSG (prerendering):** The plugin matches prerendered URLs back to their page
+  configurations to attach per-page metadata.
+- **SSR (no prerendering):** The plugin reads `page.config.sitemap` directly
+  from each page entry in Vike's config.
+
+In both cases, `+sitemap.ts` values are automatically available through Vike's
+config resolution.

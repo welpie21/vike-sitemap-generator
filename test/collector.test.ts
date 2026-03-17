@@ -1,17 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import { collectUrls } from "../src/collector.ts";
 
-// Helper to create a mock VikeConfig. We use `as any` because the real
-// VikeConfig type has many internal fields we don't need for unit tests.
 function mockVikeConfig(opts: {
-	pages?: Record<string, { route?: string; isErrorPage?: true }>;
+	pages?: Record<
+		string,
+		{
+			route?: string;
+			isErrorPage?: true;
+			sitemap?: Record<string, unknown>;
+		}
+	>;
 	prerenderContextUrls?: string[];
 }): any {
 	const pages: Record<string, any> = {};
 	if (opts.pages) {
 		for (const [key, val] of Object.entries(opts.pages)) {
 			pages[key] = {
-				config: {},
+				config: { ...(val.sitemap ? { sitemap: val.sitemap } : {}) },
 				_source: {},
 				_sources: {},
 				_from: {},
@@ -46,24 +51,24 @@ describe("collectUrls", () => {
 			const vike = mockVikeConfig({
 				prerenderContextUrls: ["/", "/about", "/blog/post-1"],
 			});
-			const urls = collectUrls(vike, []);
-			expect(urls).toEqual(["/", "/about", "/blog/post-1"]);
+			const result = collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/", "/about", "/blog/post-1"]);
 		});
 
 		test("deduplicates prerendered URLs", () => {
 			const vike = mockVikeConfig({
 				prerenderContextUrls: ["/about", "/about"],
 			});
-			const urls = collectUrls(vike, []);
-			expect(urls).toEqual(["/about"]);
+			const result = collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/about"]);
 		});
 
 		test("strips query strings and hashes from prerendered URLs", () => {
 			const vike = mockVikeConfig({
 				prerenderContextUrls: ["/about?foo=bar", "/blog#section"],
 			});
-			const urls = collectUrls(vike, []);
-			expect(urls).toEqual(["/about", "/blog"]);
+			const result = collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/about", "/blog"]);
 		});
 	});
 
@@ -75,8 +80,8 @@ describe("collectUrls", () => {
 					"/pages/about": { route: "/about" },
 				},
 			});
-			const urls = collectUrls(vike, []);
-			expect(urls).toEqual(["/", "/about"]);
+			const result = collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/", "/about"]);
 		});
 
 		test("excludes parameterized routes containing @", () => {
@@ -86,8 +91,8 @@ describe("collectUrls", () => {
 					"/pages/product": { route: "/product/@id" },
 				},
 			});
-			const urls = collectUrls(vike, []);
-			expect(urls).toEqual(["/"]);
+			const result = collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/"]);
 		});
 
 		test("excludes error pages", () => {
@@ -97,19 +102,37 @@ describe("collectUrls", () => {
 					"/pages/_error": { isErrorPage: true },
 				},
 			});
-			const urls = collectUrls(vike, []);
-			expect(urls).toEqual(["/"]);
+			const result = collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/"]);
 		});
 
 		test("excludes pages with function routes", () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/index": { route: "/" },
-					"/pages/custom": {}, // route is a function (not a string), simulated as undefined
+					"/pages/custom": {},
 				},
 			});
-			const urls = collectUrls(vike, []);
-			expect(urls).toEqual(["/"]);
+			const result = collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/"]);
+		});
+
+		test("attaches per-page sitemap config in SSR mode", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/about": {
+						route: "/about",
+						sitemap: { priority: 0.8, changefreq: "monthly" },
+					},
+				},
+			});
+			const result = collectUrls(vike, []);
+			expect(result).toEqual([
+				{
+					url: "/about",
+					pageConfig: { priority: 0.8, changefreq: "monthly" },
+				},
+			]);
 		});
 	});
 
@@ -118,22 +141,28 @@ describe("collectUrls", () => {
 			const vike = mockVikeConfig({
 				pages: { "/pages/index": { route: "/" } },
 			});
-			const urls = collectUrls(vike, ["/extra", "/more"]);
-			expect(urls).toEqual(["/", "/extra", "/more"]);
+			const result = collectUrls(vike, ["/extra", "/more"]);
+			expect(result.map((r) => r.url)).toEqual(["/", "/extra", "/more"]);
 		});
 
 		test("deduplicates additional URLs against collected ones", () => {
 			const vike = mockVikeConfig({
 				pages: { "/pages/index": { route: "/" } },
 			});
-			const urls = collectUrls(vike, ["/"]);
-			expect(urls).toEqual(["/"]);
+			const result = collectUrls(vike, ["/"]);
+			expect(result.map((r) => r.url)).toEqual(["/"]);
 		});
 
 		test("normalizes additional URLs without leading slash", () => {
 			const vike = mockVikeConfig({ pages: {} });
-			const urls = collectUrls(vike, ["about", "blog"]);
-			expect(urls).toEqual(["/about", "/blog"]);
+			const result = collectUrls(vike, ["about", "blog"]);
+			expect(result.map((r) => r.url)).toEqual(["/about", "/blog"]);
+		});
+
+		test("additional URLs have no pageConfig", () => {
+			const vike = mockVikeConfig({ pages: {} });
+			const result = collectUrls(vike, ["/extra"]);
+			expect(result[0]?.pageConfig).toBeUndefined();
 		});
 	});
 
@@ -141,7 +170,7 @@ describe("collectUrls", () => {
 		const vike = mockVikeConfig({
 			prerenderContextUrls: ["/z-page", "/a-page", "/m-page"],
 		});
-		const urls = collectUrls(vike, []);
-		expect(urls).toEqual(["/a-page", "/m-page", "/z-page"]);
+		const result = collectUrls(vike, []);
+		expect(result.map((r) => r.url)).toEqual(["/a-page", "/m-page", "/z-page"]);
 	});
 });
