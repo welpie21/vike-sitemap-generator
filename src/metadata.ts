@@ -8,6 +8,7 @@ import type {
 	SitemapEntry,
 	SitemapImage,
 	SitemapPageConfig,
+	SitemapPageConfigFn,
 } from "./types.ts";
 
 /**
@@ -40,6 +41,8 @@ export async function resolveMetadata(
 				resolveEntry(
 					item.url,
 					item.pageConfig,
+					item.routeParams,
+					item.data,
 					baseUrl,
 					lastmodFn,
 					priorityConfig,
@@ -61,7 +64,9 @@ export async function resolveMetadata(
 
 async function resolveEntry(
 	url: string,
-	pageConfig: SitemapPageConfig | undefined,
+	pageConfig: SitemapPageConfig | SitemapPageConfigFn | undefined,
+	routeParams: Record<string, string> | undefined,
+	data: unknown,
 	baseUrl: string,
 	lastmodFn:
 		| ((url: string) => Promise<string | undefined> | string | undefined)
@@ -75,16 +80,28 @@ async function resolveEntry(
 		| undefined,
 	allUrls: string[],
 ): Promise<SitemapEntry | null> {
-	if (pageConfig?.exclude) return null;
+	let resolvedConfig: SitemapPageConfig | undefined;
+	if (typeof pageConfig === "function") {
+		resolvedConfig = await pageConfig({
+			url,
+			routeParams: routeParams ?? {},
+			data,
+		});
+	} else {
+		resolvedConfig = pageConfig;
+	}
+
+	if (resolvedConfig?.exclude) return null;
 
 	const loc = `${baseUrl}${url}`;
 
-	const lastmod = pageConfig?.lastmod ?? (await resolveLastmod(url, lastmodFn));
+	const lastmod =
+		resolvedConfig?.lastmod ?? (await resolveLastmod(url, lastmodFn));
 	const priority =
-		pageConfig?.priority ?? resolvePriority(url, priorityConfig, allUrls);
+		resolvedConfig?.priority ?? resolvePriority(url, priorityConfig, allUrls);
 	const changefreq =
-		pageConfig?.changefreq ?? resolveChangefreq(url, changefreqConfig);
-	const images = pageConfig?.images ?? (await resolveImages(url, imagesFn));
+		resolvedConfig?.changefreq ?? resolveChangefreq(url, changefreqConfig);
+	const images = resolvedConfig?.images ?? (await resolveImages(url, imagesFn));
 
 	return {
 		loc,

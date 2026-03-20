@@ -45,6 +45,57 @@ export default {
 | `images`     | `SitemapImage[]`  | Array of image objects for `<image:image>`       |
 | `exclude`    | `boolean`         | When `true`, excludes the page from the sitemap |
 
+## Dynamic routes with callbacks
+
+For dynamic routes (e.g. `/blog/@slug`), you can export a function instead of a
+static object. The function receives a context with the concrete URL, extracted
+route parameters, and the page's `data` from `+data.ts`:
+
+```ts
+// pages/blog/@slug/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+import type { Data } from "./+data";
+
+export default ((context) => ({
+	priority: 0.7,
+	changefreq: "weekly",
+	lastmod: context.data.updatedAt,
+	images: context.data.images.map((img) => ({
+		loc: img.url,
+		title: img.alt,
+	})),
+})) satisfies SitemapPageConfigFn<Data>;
+```
+
+The callback runs after `+data.ts` has been resolved during prerendering, so
+`context.data` contains the same data your page component receives.
+
+The callback can also be async:
+
+```ts
+// pages/product/@id/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+
+export default (async (context) => {
+	return {
+		priority: context.data.featured ? 1.0 : 0.5,
+		lastmod: context.data.updatedAt,
+		images: context.data.images.map((img) => ({ loc: img.url, title: img.alt })),
+	};
+}) satisfies SitemapPageConfigFn;
+```
+
+### `SitemapPageContext<Data>`
+
+| Field         | Type                       | Description                                         |
+| ------------- | -------------------------- | --------------------------------------------------- |
+| `url`         | `string`                   | The concrete URL path (e.g. `"/blog/post-1"`)       |
+| `routeParams` | `Record<string, string>`   | Extracted route params (e.g. `{ slug: "post-1" }`)  |
+| `data`        | `Data`                     | Page data from `+data.ts` (SSG only, `unknown` by default) |
+
+The `Data` generic parameter can be typed by importing your page's `Data` type
+and passing it to `SitemapPageConfigFn<Data>`.
+
 ## Excluding pages
 
 Set `exclude: true` to remove a page from the sitemap entirely:

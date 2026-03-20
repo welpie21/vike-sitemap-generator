@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { collectUrls } from "../src/collector.ts";
+import { collectUrls, matchRoute } from "../src/collector.ts";
 
 function mockVikeConfig(opts: {
 	pages?: Record<
@@ -7,10 +7,11 @@ function mockVikeConfig(opts: {
 		{
 			route?: string;
 			isErrorPage?: true;
-			sitemap?: Record<string, unknown>;
+			sitemap?: Record<string, unknown> | ((...args: any[]) => any);
 		}
 	>;
 	prerenderContextUrls?: string[];
+	prerenderContexts?: Array<{ urlOriginal: string; data?: unknown }>;
 }): any {
 	const pages: Record<string, any> = {};
 	if (opts.pages) {
@@ -27,19 +28,23 @@ function mockVikeConfig(opts: {
 		}
 	}
 
+	let pageContexts: any = null;
+	if (opts.prerenderContexts) {
+		pageContexts = opts.prerenderContexts;
+	} else if (opts.prerenderContextUrls) {
+		pageContexts = opts.prerenderContextUrls.map((url) => ({
+			urlOriginal: url,
+		}));
+	}
+
 	return {
 		pages,
 		config: {},
 		_source: {},
 		_sources: {},
 		_from: {},
-		prerenderContext: opts.prerenderContextUrls
-			? {
-					pageContexts: opts.prerenderContextUrls.map((url) => ({
-						urlOriginal: url,
-					})),
-					output: [],
-				}
+		prerenderContext: pageContexts
+			? { pageContexts, output: [] }
 			: { pageContexts: null, output: null },
 		dangerouslyUseInternals: {},
 	};
@@ -166,11 +171,189 @@ describe("collectUrls", () => {
 		});
 	});
 
+	describe("dynamic routes in SSG mode", () => {
+		test("attaches pageConfig from parameterized route to prerendered URL", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: { priority: 0.7, changefreq: "weekly" },
+					},
+				},
+				prerenderContextUrls: ["/blog/post-1", "/blog/post-2"],
+			});
+			const result = collectUrls(vike, []);
+			expect(result).toEqual([
+				{
+					url: "/blog/post-1",
+					pageConfig: { priority: 0.7, changefreq: "weekly" },
+					routeParams: { slug: "post-1" },
+				},
+				{
+					url: "/blog/post-2",
+					pageConfig: { priority: 0.7, changefreq: "weekly" },
+					routeParams: { slug: "post-2" },
+				},
+			]);
+		});
+
+		test("extracts multiple route params", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/blog/@year/@slug": {
+						route: "/blog/@year/@slug",
+						sitemap: { priority: 0.6 },
+					},
+				},
+				prerenderContextUrls: ["/blog/2025/hello-world"],
+			});
+			const result = collectUrls(vike, []);
+			expect(result[0]?.routeParams).toEqual({
+				year: "2025",
+				slug: "hello-world",
+			});
+		});
+
+		test("attaches function pageConfig from parameterized route", () => {
+			const sitemapFn = ({ routeParams }: any) => ({
+				priority: routeParams.slug === "featured" ? 1.0 : 0.5,
+			});
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: sitemapFn,
+					},
+				},
+				prerenderContextUrls: ["/blog/featured", "/blog/regular"],
+			});
+			const result = collectUrls(vike, []);
+			expect(typeof result[0]?.pageConfig).toBe("function");
+			expect(result[0]?.routeParams).toEqual({ slug: "featured" });
+			expect(result[1]?.routeParams).toEqual({ slug: "regular" });
+		});
+
+		test("matches static routes alongside dynamic routes", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/index": { route: "/" },
+					"/pages/about": {
+						route: "/about",
+						sitemap: { priority: 0.8 },
+					},
+					"/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: { priority: 0.7 },
+					},
+				},
+				prerenderContextUrls: ["/", "/about", "/blog/post-1"],
+			});
+			const result = collectUrls(vike, []);
+			expect(result).toEqual([
+				{ url: "/", pageConfig: undefined, routeParams: {} },
+				{
+					url: "/about",
+					pageConfig: { priority: 0.8 },
+					routeParams: {},
+				},
+				{
+					url: "/blog/post-1",
+					pageConfig: { priority: 0.7 },
+					routeParams: { slug: "post-1" },
+				},
+			]);
+		});
+
+		test("returns undefined pageConfig for URLs with no matching route", () => {
+			const vike = mockVikeConfig({
+				pages: {},
+				prerenderContextUrls: ["/orphan-page"],
+			});
+			const result = collectUrls(vike, []);
+			expect(result[0]?.pageConfig).toBeUndefined();
+			expect(result[0]?.routeParams).toBeUndefined();
+		});
+
+		test("passes data from prerender pageContext", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: { priority: 0.7 },
+					},
+				},
+				prerenderContexts: [
+					{
+						urlOriginal: "/blog/post-1",
+						data: { title: "Post 1", tags: ["ts"] },
+					},
+					{
+						urlOriginal: "/blog/post-2",
+						data: { title: "Post 2", tags: ["js"] },
+					},
+				],
+			});
+			const result = collectUrls(vike, []);
+			expect(result[0]?.data).toEqual({ title: "Post 1", tags: ["ts"] });
+			expect(result[1]?.data).toEqual({ title: "Post 2", tags: ["js"] });
+		});
+
+		test("data is undefined when pageContext has no data", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/about": { route: "/about" },
+				},
+				prerenderContextUrls: ["/about"],
+			});
+			const result = collectUrls(vike, []);
+			expect(result[0]?.data).toBeUndefined();
+		});
+	});
+
 	test("returns sorted URLs", () => {
 		const vike = mockVikeConfig({
 			prerenderContextUrls: ["/z-page", "/a-page", "/m-page"],
 		});
 		const result = collectUrls(vike, []);
 		expect(result.map((r) => r.url)).toEqual(["/a-page", "/m-page", "/z-page"]);
+	});
+});
+
+describe("matchRoute", () => {
+	test("matches static route exactly", () => {
+		expect(matchRoute("/about", "/about")).toEqual({});
+	});
+
+	test("returns null for non-matching static route", () => {
+		expect(matchRoute("/about", "/contact")).toBeNull();
+	});
+
+	test("extracts single param", () => {
+		expect(matchRoute("/blog/hello", "/blog/@slug")).toEqual({
+			slug: "hello",
+		});
+	});
+
+	test("extracts multiple params", () => {
+		expect(matchRoute("/blog/2025/hello", "/blog/@year/@slug")).toEqual({
+			year: "2025",
+			slug: "hello",
+		});
+	});
+
+	test("returns null when segment count differs", () => {
+		expect(matchRoute("/blog/2025/hello", "/blog/@slug")).toBeNull();
+	});
+
+	test("returns null when static segment mismatches", () => {
+		expect(matchRoute("/posts/hello", "/blog/@slug")).toBeNull();
+	});
+
+	test("matches root path", () => {
+		expect(matchRoute("/", "/")).toEqual({});
+	});
+
+	test("handles param at first segment", () => {
+		expect(matchRoute("/42", "/@id")).toEqual({ id: "42" });
 	});
 });

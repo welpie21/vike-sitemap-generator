@@ -73,8 +73,23 @@ export default {
 } satisfies SitemapPageConfig;
 ```
 
-Per-page values take precedence over global plugin options. You can also exclude
-a page from the sitemap:
+Per-page values take precedence over global plugin options. For dynamic routes,
+export a function to receive page context including `data` from `+data.ts`:
+
+```ts
+// pages/blog/@slug/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+import type { Data } from "./+data";
+
+export default ((context) => ({
+	priority: 0.7,
+	changefreq: "weekly",
+	lastmod: context.data.updatedAt,
+	images: context.data.images.map((img) => ({ loc: img.url, title: img.alt })),
+})) satisfies SitemapPageConfigFn<Data>;
+```
+
+You can also exclude a page from the sitemap:
 
 ```ts
 // pages/admin/+sitemap.ts

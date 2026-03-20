@@ -584,6 +584,221 @@ describe("resolveMetadata", () => {
 		});
 	});
 
+	describe("function pageConfig (callback)", () => {
+		test("calls function pageConfig with url, routeParams and data", async () => {
+			let receivedContext: any;
+			const configFn = (ctx: any) => {
+				receivedContext = ctx;
+				return { priority: 0.9 };
+			};
+			const items: CollectedUrl[] = [
+				{
+					url: "/blog/post-1",
+					pageConfig: configFn,
+					routeParams: { slug: "post-1" },
+					data: { title: "Post 1", tags: ["ts"] },
+				},
+			];
+			await resolveMetadata(
+				items,
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				defaultConcurrency,
+			);
+			expect(receivedContext).toEqual({
+				url: "/blog/post-1",
+				routeParams: { slug: "post-1" },
+				data: { title: "Post 1", tags: ["ts"] },
+			});
+		});
+
+		test("applies returned config values", async () => {
+			const configFn = () => ({
+				priority: 0.9,
+				changefreq: "daily" as const,
+				lastmod: "2025-03-01",
+			});
+			const items: CollectedUrl[] = [
+				{
+					url: "/blog/post-1",
+					pageConfig: configFn,
+					routeParams: { slug: "post-1" },
+				},
+			];
+			const entries = await resolveMetadata(
+				items,
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				defaultConcurrency,
+			);
+			expect(entries).toEqual([
+				{
+					loc: "https://example.com/blog/post-1",
+					priority: 0.9,
+					changefreq: "daily",
+					lastmod: "2025-03-01",
+				},
+			]);
+		});
+
+		test("function pageConfig overrides global options", async () => {
+			const configFn = () => ({ priority: 0.9 });
+			const items: CollectedUrl[] = [
+				{ url: "/blog/post-1", pageConfig: configFn },
+				{ url: "/about" },
+			];
+			const entries = await resolveMetadata(
+				items,
+				baseUrl,
+				undefined,
+				0.5,
+				undefined,
+				undefined,
+				defaultConcurrency,
+			);
+			expect(entries[0]?.priority).toBe(0.9);
+			expect(entries[1]?.priority).toBe(0.5);
+		});
+
+		test("function pageConfig with exclude removes URL", async () => {
+			const configFn = () => ({ exclude: true });
+			const items: CollectedUrl[] = [
+				{ url: "/blog/draft", pageConfig: configFn },
+				{ url: "/blog/published" },
+			];
+			const entries = await resolveMetadata(
+				items,
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				defaultConcurrency,
+			);
+			expect(entries).toEqual([{ loc: "https://example.com/blog/published" }]);
+		});
+
+		test("supports async function pageConfig", async () => {
+			const configFn = async () => {
+				await new Promise((r) => setTimeout(r, 5));
+				return { priority: 0.8, lastmod: "2025-06-01" };
+			};
+			const items: CollectedUrl[] = [
+				{
+					url: "/blog/post-1",
+					pageConfig: configFn,
+					routeParams: { slug: "post-1" },
+				},
+			];
+			const entries = await resolveMetadata(
+				items,
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				defaultConcurrency,
+			);
+			expect(entries).toEqual([
+				{
+					loc: "https://example.com/blog/post-1",
+					priority: 0.8,
+					lastmod: "2025-06-01",
+				},
+			]);
+		});
+
+		test("callback can use data to produce sitemap config", async () => {
+			const configFn = (ctx: any) => ({
+				priority: ctx.data.featured ? 1.0 : 0.5,
+				lastmod: ctx.data.updatedAt,
+				images: ctx.data.images.map((img: any) => ({
+					loc: img.url,
+					title: img.alt,
+				})),
+			});
+			const items: CollectedUrl[] = [
+				{
+					url: "/blog/post-1",
+					pageConfig: configFn,
+					routeParams: { slug: "post-1" },
+					data: {
+						featured: true,
+						updatedAt: "2025-03-15",
+						images: [{ url: "https://example.com/hero.jpg", alt: "Hero" }],
+					},
+				},
+			];
+			const entries = await resolveMetadata(
+				items,
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				defaultConcurrency,
+			);
+			expect(entries).toEqual([
+				{
+					loc: "https://example.com/blog/post-1",
+					priority: 1.0,
+					lastmod: "2025-03-15",
+					images: [{ loc: "https://example.com/hero.jpg", title: "Hero" }],
+				},
+			]);
+		});
+
+		test("passes empty routeParams and undefined data when none provided", async () => {
+			let receivedContext: any;
+			const configFn = (ctx: any) => {
+				receivedContext = ctx;
+				return { priority: 0.5 };
+			};
+			const items: CollectedUrl[] = [{ url: "/about", pageConfig: configFn }];
+			await resolveMetadata(
+				items,
+				baseUrl,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				defaultConcurrency,
+			);
+			expect(receivedContext.routeParams).toEqual({});
+			expect(receivedContext.data).toBeUndefined();
+		});
+
+		test("fields not set in function config fall through to globals", async () => {
+			const configFn = () => ({ priority: 0.9 });
+			const items: CollectedUrl[] = [
+				{ url: "/blog/post-1", pageConfig: configFn },
+			];
+			const entries = await resolveMetadata(
+				items,
+				baseUrl,
+				() => "2025-01-01",
+				undefined,
+				"weekly",
+				undefined,
+				defaultConcurrency,
+			);
+			expect(entries).toEqual([
+				{
+					loc: "https://example.com/blog/post-1",
+					priority: 0.9,
+					lastmod: "2025-01-01",
+					changefreq: "weekly",
+				},
+			]);
+		});
+	});
+
 	describe("concurrency", () => {
 		test("resolves all URLs with concurrency of 1", async () => {
 			const entries = await resolveMetadata(
