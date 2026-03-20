@@ -101,8 +101,7 @@ async function resolveEntry(
 		resolvedConfig?.priority ?? resolvePriority(url, priorityConfig, allUrls);
 	const changefreq =
 		resolvedConfig?.changefreq ?? resolveChangefreq(url, changefreqConfig);
-	const images =
-		resolvedConfig?.images ?? (await resolveImages(url, imagesFn));
+	const images = resolvedConfig?.images ?? (await resolveImages(url, imagesFn));
 
 	return {
 		loc,

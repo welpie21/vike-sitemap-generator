@@ -91,7 +91,12 @@ function buildRouteEntries(vikeConfig: VikeConfig): RouteEntry[] {
 function findMatchingRoute(
 	url: string,
 	entries: RouteEntry[],
-): { pageConfig: typeof entries[0]["pageConfig"]; routeParams: Record<string, string> } | undefined {
+):
+	| {
+			pageConfig: (typeof entries)[0]["pageConfig"];
+			routeParams: Record<string, string>;
+	  }
+	| undefined {
 	for (const entry of entries) {
 		const params = matchRoute(url, entry.route);
 		if (params !== null) {

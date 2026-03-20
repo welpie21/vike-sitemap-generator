@@ -41,8 +41,7 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 
 			const withExcluded = filtered.filter(
 				(item) =>
-					typeof item.pageConfig === "function" ||
-					!item.pageConfig?.exclude,
+					typeof item.pageConfig === "function" || !item.pageConfig?.exclude,
 			);
 
 			if (withExcluded.length === 0) {

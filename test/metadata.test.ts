@@ -681,9 +681,7 @@ describe("resolveMetadata", () => {
 				undefined,
 				defaultConcurrency,
 			);
-			expect(entries).toEqual([
-				{ loc: "https://example.com/blog/published" },
-			]);
+			expect(entries).toEqual([{ loc: "https://example.com/blog/published" }]);
 		});
 
 		test("supports async function pageConfig", async () => {
@@ -733,9 +731,7 @@ describe("resolveMetadata", () => {
 					data: {
 						featured: true,
 						updatedAt: "2025-03-15",
-						images: [
-							{ url: "https://example.com/hero.jpg", alt: "Hero" },
-						],
+						images: [{ url: "https://example.com/hero.jpg", alt: "Hero" }],
 					},
 				},
 			];
@@ -764,9 +760,7 @@ describe("resolveMetadata", () => {
 				receivedContext = ctx;
 				return { priority: 0.5 };
 			};
-			const items: CollectedUrl[] = [
-				{ url: "/about", pageConfig: configFn },
-			];
+			const items: CollectedUrl[] = [{ url: "/about", pageConfig: configFn }];
 			await resolveMetadata(
 				items,
 				baseUrl,
