@@ -147,10 +147,34 @@ export interface SitemapPageConfig {
 	exclude?: boolean;
 }
 
+/**
+ * Context passed to +sitemap.ts callback functions.
+ * Generic parameter `Data` matches the return type of the page's +data.ts.
+ */
+export interface SitemapPageContext<Data = unknown> {
+	/** The concrete URL path (e.g., "/blog/post-1"). */
+	url: string;
+	/** Route parameters extracted from the URL (e.g., { slug: "post-1" }). */
+	routeParams: Record<string, string>;
+	/** Page data from +data.ts, available when prerendering (SSG). */
+	data: Data;
+}
+
+/**
+ * Function form of per-page sitemap config, receives page context.
+ * Generic parameter `Data` matches the return type of the page's +data.ts.
+ */
+export type SitemapPageConfigFn<Data = unknown> = (
+	context: SitemapPageContext<Data>,
+) => SitemapPageConfig | Promise<SitemapPageConfig>;
+
 /** A collected URL together with its optional per-page sitemap config. */
 export interface CollectedUrl {
 	url: string;
-	pageConfig?: SitemapPageConfig;
+	pageConfig?: SitemapPageConfig | SitemapPageConfigFn;
+	routeParams?: Record<string, string>;
+	// biome-ignore lint/suspicious/noExplicitAny: data type varies per page's +data.ts
+	data?: any;
 }
 
 export type { Plugin };

@@ -50,14 +50,23 @@ Register the extension, then create `+sitemap.ts` files in page directories:
 import vikeSitemapConfig from "vike-sitemap-generator/config";
 export default { extends: [vikeSitemapConfig] };
 
-// pages/about/+sitemap.ts
+// pages/about/+sitemap.ts (static config)
 export default { priority: 0.8, changefreq: "monthly", lastmod: "2025-06-15" };
+
+// pages/blog/@slug/+sitemap.ts (callback with access to +data.ts)
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+import type { Data } from "./+data";
+export default ((context) => ({
+  priority: 0.7,
+  lastmod: context.data.updatedAt,
+  images: context.data.images.map((img) => ({ loc: img.url, title: img.alt })),
+})) satisfies SitemapPageConfigFn<Data>;
 
 // pages/admin/+sitemap.ts
 export default { exclude: true };
 ```
 
-Per-page values override global plugin options.
+Per-page values override global plugin options. For dynamic routes, export a function that receives `SitemapPageContext<Data>` (`{ url, routeParams, data }`) where `data` comes from `+data.ts`.
 
 ## Plugin options
 
@@ -87,6 +96,22 @@ Per-page values override global plugin options.
 | `lastmod`    | `string`         | ISO 8601 date string                         |
 | `images`     | `SitemapImage[]`  | Image entries                                |
 | `exclude`    | `boolean`        | Exclude page from sitemap                    |
+
+`+sitemap.ts` can export either a `SitemapPageConfig` object or a `SitemapPageConfigFn` callback.
+
+## SitemapPageConfigFn (callback for dynamic routes)
+
+```ts
+type SitemapPageConfigFn<Data = unknown> = (context: SitemapPageContext<Data>) => SitemapPageConfig | Promise<SitemapPageConfig>;
+```
+
+## SitemapPageContext
+
+| Field         | Type                     | Description                                         |
+| ------------- | ------------------------ | --------------------------------------------------- |
+| `url`         | `string`                 | Concrete URL path (e.g. `"/blog/post-1"`)           |
+| `routeParams` | `Record<string, string>` | Extracted route params (e.g. `{ slug: "post-1" }`)  |
+| `data`        | `Data`                   | Page data from `+data.ts` (SSG only, `unknown` by default) |
 
 ## Export paths
 

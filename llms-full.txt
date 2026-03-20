@@ -364,6 +364,57 @@ export default {
 - `images` (SitemapImage[]) -- Array of image objects for `<image:image>`
 - `exclude` (boolean) -- When `true`, excludes the page from the sitemap
 
+### Dynamic routes with callbacks
+
+For dynamic routes (e.g. `/blog/@slug`), export a function instead of a static object. The function receives a `SitemapPageContext` with the concrete URL, extracted route parameters, and the page's `data` from `+data.ts`:
+
+```ts
+// pages/blog/@slug/+data.ts
+export type Data = { title: string; updatedAt: string; images: { url: string; alt: string }[] };
+export default async function (pageContext) {
+  const post = await fetchPost(pageContext.routeParams.slug);
+  return post;
+}
+
+// pages/blog/@slug/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+import type { Data } from "./+data";
+
+export default ((context) => ({
+  priority: 0.7,
+  changefreq: "weekly",
+  lastmod: context.data.updatedAt,
+  images: context.data.images.map((img) => ({ loc: img.url, title: img.alt })),
+})) satisfies SitemapPageConfigFn<Data>;
+```
+
+The callback runs after `+data.ts` has been resolved during prerendering, so `context.data` contains the same data your page component receives.
+
+The callback can also be async:
+
+```ts
+// pages/product/@id/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+
+export default (async (context) => {
+  return {
+    priority: context.data.featured ? 1.0 : 0.5,
+    lastmod: context.data.updatedAt,
+    images: context.data.images.map((img) => ({ loc: img.url, title: img.alt })),
+  };
+}) satisfies SitemapPageConfigFn;
+```
+
+SitemapPageContext fields:
+- `url` (string) -- The concrete URL path (e.g. `"/blog/post-1"`)
+- `routeParams` (Record<string, string>) -- Extracted route params (e.g. `{ slug: "post-1" }`)
+- `data` (Data) -- Page data from `+data.ts`, available during SSG prerendering. Typed as `unknown` by default; pass your `Data` type as a generic parameter to `SitemapPageConfigFn<Data>` for type safety.
+
+SitemapPageConfigFn type:
+```ts
+type SitemapPageConfigFn<Data = unknown> = (context: SitemapPageContext<Data>) => SitemapPageConfig | Promise<SitemapPageConfig>;
+```
+
 ### Excluding pages
 
 ```ts
@@ -381,6 +432,7 @@ Per-page values always override global options:
 - `+sitemap.ts` `lastmod: "2024-01-01"` overrides the global `lastmod` callback result.
 - `+sitemap.ts` `images` prevents the global `images` callback from being called for that URL.
 - Fields not set in `+sitemap.ts` fall through to the global callbacks/rules.
+- Function configs follow the same precedence: returned fields override globals, unset fields fall through.
 
 ### Per-page images
 
@@ -403,7 +455,7 @@ export default {
 
 ### SSG vs SSR behavior
 
-- SSG (prerendering): The plugin matches prerendered URLs back to their page configurations to attach per-page metadata.
+- SSG (prerendering): The plugin matches prerendered URLs back to their page route patterns to attach per-page metadata and extract route params. Both static and parameterized routes are matched correctly.
 - SSR (no prerendering): The plugin reads `page.config.sitemap` directly from each page entry in Vike's config.
 
 ## Fetchers
@@ -499,6 +551,14 @@ interface SitemapPageConfig {
   exclude?: boolean;
 }
 
+interface SitemapPageContext<Data = unknown> {
+  url: string;
+  routeParams: Record<string, string>;
+  data: Data;
+}
+
+type SitemapPageConfigFn<Data = unknown> = (context: SitemapPageContext<Data>) => SitemapPageConfig | Promise<SitemapPageConfig>;
+
 interface SitemapImage {
   loc: string;
   caption?: string;
@@ -521,7 +581,9 @@ interface SitemapContext {
 
 interface CollectedUrl {
   url: string;
-  pageConfig?: SitemapPageConfig;
+  pageConfig?: SitemapPageConfig | SitemapPageConfigFn;
+  routeParams?: Record<string, string>;
+  data?: any;
 }
 
 type Changefreq = "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
@@ -555,7 +617,7 @@ export default {
 declare global {
   namespace Vike {
     interface Config {
-      sitemap?: SitemapPageConfig;
+      sitemap?: SitemapPageConfig | SitemapPageConfigFn;
     }
   }
 }

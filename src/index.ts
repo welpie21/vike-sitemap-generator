@@ -13,6 +13,8 @@ export type {
 	SitemapEntry,
 	SitemapImage,
 	SitemapPageConfig,
+	SitemapPageConfigFn,
+	SitemapPageContext,
 	SitemapPluginOptions,
 	TrailingSlashConfig,
 	TrailingSlashFn,

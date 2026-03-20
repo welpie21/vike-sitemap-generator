@@ -39,7 +39,11 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 
 			const filtered = filterExcludedUrls(collected, config.exclude);
 
-			const withExcluded = filtered.filter((item) => !item.pageConfig?.exclude);
+			const withExcluded = filtered.filter(
+				(item) =>
+					typeof item.pageConfig === "function" ||
+					!item.pageConfig?.exclude,
+			);
 
 			if (withExcluded.length === 0) {
 				console.warn(

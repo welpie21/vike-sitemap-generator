@@ -1,5 +1,5 @@
 import type { Config } from "vike/types";
-import type { SitemapPageConfig } from "./types.ts";
+import type { SitemapPageConfig, SitemapPageConfigFn } from "./types.ts";
 
 export default {
 	name: "vike-sitemap-generator",
@@ -13,7 +13,7 @@ export default {
 declare global {
 	namespace Vike {
 		interface Config {
-			sitemap?: SitemapPageConfig;
+			sitemap?: SitemapPageConfig | SitemapPageConfigFn;
 		}
 	}
 }
