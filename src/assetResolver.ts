@@ -57,9 +57,7 @@ export async function loadClientManifest(
 		try {
 			const content = await readFile(candidate, "utf-8");
 			return JSON.parse(content) as ViteManifest;
-		} catch {
-			continue;
-		}
+		} catch {}
 	}
 	return null;
 }
