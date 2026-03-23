@@ -5,7 +5,7 @@ export default {
 	name: "vike-sitemap-generator",
 	meta: {
 		sitemap: {
-			env: { config: true },
+			env: { config: true, server: true },
 		},
 	},
 } satisfies Config;

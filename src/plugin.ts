@@ -1,6 +1,5 @@
 import { resolve } from "node:path";
 import { getVikeConfig } from "vike/plugin";
-import type { VikeConfig } from "vike/types";
 import type { Plugin, ResolvedConfig as ViteResolvedConfig } from "vite";
 import { collectUrls } from "./collector.ts";
 import { filterExcludedUrls } from "./filter.ts";
@@ -15,7 +14,6 @@ const LOG_PREFIX = "[vike-sitemap-generator]";
 
 export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 	const config = resolveConfig(options);
-	let vikeConfig: VikeConfig;
 	let viteConfig: ViteResolvedConfig;
 
 	return {
@@ -24,16 +22,23 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 
 		async configResolved(resolved) {
 			viteConfig = resolved;
-			// biome-ignore lint/suspicious/noExplicitAny: Vike's getVikeConfig accepts the resolved config loosely
-			vikeConfig = getVikeConfig(resolved as unknown as any);
 		},
 
 		async closeBundle() {
-			if (viteConfig.build.ssr) return;
+			// Run after the SSR build so that prerenderContext.pageContexts
+			// (populated during the SSR build's writeBundle) is available.
+			if (!viteConfig.build.ssr) return;
+
+			// Re-read vikeConfig here (not from configResolved) to ensure we
+			// see the latest state — including prerenderContext.pageContexts
+			// populated during writeBundle and page configs loaded across
+			// Vite environment boundaries.
+			// biome-ignore lint/suspicious/noExplicitAny: Vike's getVikeConfig accepts the resolved config loosely
+			const vikeConfig = getVikeConfig(viteConfig as unknown as any);
 
 			const outDir = config.outDir
 				? resolve(viteConfig.root, config.outDir)
-				: viteConfig.build.outDir;
+				: resolveClientOutDir(viteConfig);
 
 			const collected = collectUrls(vikeConfig, config.additionalUrls);
 
@@ -129,4 +134,17 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 			}
 		},
 	};
+}
+
+/**
+ * Derives the client output directory from the SSR build's resolved config.
+ * Vike uses `{outDirRoot}/server` for SSR and `{outDirRoot}/client` for the
+ * client build (see vike/dist/node/vite/shared/getOutDirs.js).
+ */
+function resolveClientOutDir(ssrViteConfig: ViteResolvedConfig): string {
+	const ssrOutDir = ssrViteConfig.build.outDir;
+	if (ssrOutDir.endsWith("/server")) {
+		return `${ssrOutDir.slice(0, -"/server".length)}/client`;
+	}
+	return ssrOutDir.replace(/\/server\/$/, "/client/");
 }
