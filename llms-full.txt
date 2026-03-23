@@ -10,6 +10,7 @@ vike-sitemap-generator is a Vite build plugin for Vike (a full-stack framework b
 - Per-page metadata via co-located `+sitemap.ts` files using Vike's extension system
 - Parallel metadata resolution with configurable concurrency (default 10)
 - Automatic sitemap index splitting for large sites exceeding 50,000 URLs
+- External sitemap references for multi-app domains (sitemap index)
 - Configurable `<lastmod>`, `<priority>`, `<changefreq>`, and `<image:image>` per URL
 - Trailing slash control (boolean, per-route rules, or function)
 - Exclude paths by exact string, regex, or per-page `exclude: true`
@@ -28,7 +29,7 @@ bun add vike-sitemap-generator
 pnpm add vike-sitemap-generator
 ```
 
-Peer dependencies: `vike >= 0.4.0`, `vite >= 5.0.0`
+Peer dependencies: `vike >= 0.4.0`, `vite >= 7.0.0`
 
 ## Export paths
 
@@ -322,6 +323,27 @@ In dry-run mode:
 - No `robots.txt` is written (even if `robots: true`).
 - All metadata resolution (lastmod, images, etc.) still runs normally so you can verify the full pipeline.
 
+### `externalSitemaps`
+
+An array of external sitemap URLs to include in the generated sitemap index. When provided, the plugin always produces a sitemap index that references both the locally generated sitemap(s) and these external URLs. This is useful when your domain hosts multiple independent sites that each generate their own sitemap (e.g. a docs site at `/docs`).
+
+```ts
+vikeSitemap({
+  baseUrl: "https://example.com",
+  externalSitemaps: [
+    "https://example.com/docs/sitemap.xml",
+    "https://example.com/blog/sitemap.xml",
+  ],
+});
+```
+
+Behavior:
+- When `externalSitemaps` is non-empty, the plugin always generates a sitemap index, even if the local URL count is below `maxUrlsPerSitemap`.
+- Local URLs are written to `sitemap-0.xml` (or chunked into `sitemap-0.xml`, `sitemap-1.xml`, ... if they exceed `maxUrlsPerSitemap`).
+- The sitemap index file (at `outFile`, default `sitemap.xml`) references both the local sitemap file(s) and the external URLs.
+- External URLs are appended after local sitemaps in the index.
+- When omitted or empty, behavior is identical to previous versions (no sitemap index for small sites).
+
 ## Per-page metadata with `+sitemap.ts`
 
 Co-locate sitemap metadata alongside your pages using Vike's extension system. Per-page values take precedence over global plugin options.
@@ -541,6 +563,7 @@ interface SitemapPluginOptions {
   maxUrlsPerSitemap?: number;
   robots?: boolean;
   dryRun?: boolean;
+  externalSitemaps?: string[];
 }
 
 interface SitemapPageConfig {
@@ -608,7 +631,7 @@ export default {
   name: "vike-sitemap-generator",
   meta: {
     sitemap: {
-      env: { config: true },
+      env: { config: true, server: true },
     },
   },
 } satisfies Config;
@@ -656,3 +679,4 @@ The plugin hooks into Vite's build pipeline and only runs during the client buil
 | `maxUrlsPerSitemap` | `number`                                      | `50000`        | Threshold for sitemap index splitting                             |
 | `robots`            | `boolean`                                     | `false`        | Append `Sitemap:` directive to robots.txt                         |
 | `dryRun`            | `boolean`                                     | `false`        | Log XML to console without writing files                          |
+| `externalSitemaps`  | `string[]`                                    | `[]`           | External sitemap URLs to include in the sitemap index             |

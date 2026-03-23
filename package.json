@@ -1,6 +1,6 @@
 {
 	"name": "vike-sitemap-generator",
-	"version": "2.1.1",
+	"version": "2.2.0",
 	"description": "Vite plugin for Vike that generates sitemap.xml at build time",
 	"type": "module",
 	"exports": {

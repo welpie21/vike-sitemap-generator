@@ -21,4 +21,12 @@ describe("vikeSitemap", () => {
 		const plugin = vikeSitemap({ baseUrl: "https://example.com" });
 		expect(typeof plugin.closeBundle).toBe("function");
 	});
+
+	test("accepts externalSitemaps option", () => {
+		const plugin = vikeSitemap({
+			baseUrl: "https://example.com",
+			externalSitemaps: ["https://example.com/docs/sitemap.xml"],
+		});
+		expect(plugin.name).toBe("vike-sitemap-generator");
+	});
 });
