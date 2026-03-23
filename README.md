@@ -7,6 +7,7 @@ Vite plugin for [Vike](https://vike.dev) that automatically generates a
 - Per-page metadata via co-located `+sitemap.ts` files (Vike extension)
 - Parallel metadata resolution with configurable concurrency
 - Automatic sitemap index splitting for large sites (50,000+ URLs)
+- External sitemap references for multi-app domains (sitemap index)
 - Configurable trailing slashes, `<lastmod>`, `<priority>`, `<changefreq>`, and
   `<image:image>`
 - Exclude paths by exact string, regex, or per-page config
@@ -22,7 +23,7 @@ bun add vike-sitemap-generator
 pnpm add vike-sitemap-generator
 ```
 
-Requires `vike >= 0.4.0` and `vite >= 5.0.0` as peer dependencies.
+Requires `vike >= 0.4.0` and `vite >= 7.0.0` as peer dependencies.
 
 ## Quick start
 
@@ -350,6 +351,27 @@ vikeSitemap({
 	dryRun: true,
 });
 ```
+
+### `externalSitemaps`
+
+An array of external sitemap URLs to include in the generated sitemap index.
+When provided, the plugin always produces a sitemap index that references both
+the locally generated sitemap(s) and the external URLs. This is useful when
+your domain hosts multiple independent sites that each generate their own
+sitemap (e.g. a docs site at `/docs`).
+
+```ts
+vikeSitemap({
+	baseUrl: "https://example.com",
+	externalSitemaps: [
+		"https://example.com/docs/sitemap.xml",
+		"https://example.com/blog/sitemap.xml",
+	],
+});
+```
+
+See the [External sitemaps guide](docs/sitemap-index.md#external-sitemaps) for
+details.
 
 ## Fetchers
 

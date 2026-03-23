@@ -109,6 +109,23 @@ describe("resolveConfig", () => {
 		expect(config.dryRun).toBe(true);
 	});
 
+	test("defaults externalSitemaps to empty array", () => {
+		const config = resolveConfig({ baseUrl: "https://example.com" });
+		expect(config.externalSitemaps).toEqual([]);
+	});
+
+	test("passes through externalSitemaps when provided", () => {
+		const sitemaps = [
+			"https://example.com/docs/sitemap.xml",
+			"https://example.com/blog/sitemap.xml",
+		];
+		const config = resolveConfig({
+			baseUrl: "https://example.com",
+			externalSitemaps: sitemaps,
+		});
+		expect(config.externalSitemaps).toEqual(sitemaps);
+	});
+
 	test("passes through optional fields as-is", () => {
 		const lastmod = () => "2025-01-01";
 		const images = () => [{ loc: "https://example.com/img.jpg" }];

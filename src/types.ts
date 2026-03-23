@@ -60,6 +60,13 @@ export interface SitemapPluginOptions {
 	robots?: boolean;
 	/** When enabled, logs the generated XML to the console without writing files. Default: false. */
 	dryRun?: boolean;
+	/**
+	 * External sitemap URLs to include in the generated sitemap index.
+	 * When provided, the plugin always produces a sitemap index that references
+	 * both the locally generated sitemap(s) and these external URLs.
+	 * Example: ["https://example.com/docs/sitemap.xml"]
+	 */
+	externalSitemaps?: string[];
 }
 
 /** Context object passed to trailingSlash and priority callback functions. */
@@ -173,7 +180,6 @@ export interface CollectedUrl {
 	url: string;
 	pageConfig?: SitemapPageConfig | SitemapPageConfigFn;
 	routeParams?: Record<string, string>;
-	// biome-ignore lint/suspicious/noExplicitAny: data type varies per page's +data.ts
 	data?: any;
 }
 

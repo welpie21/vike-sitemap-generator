@@ -33,7 +33,6 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 			// see the latest state — including prerenderContext.pageContexts
 			// populated during writeBundle and page configs loaded across
 			// Vite environment boundaries.
-			// biome-ignore lint/suspicious/noExplicitAny: Vike's getVikeConfig accepts the resolved config loosely
 			const vikeConfig = getVikeConfig(viteConfig as unknown as any);
 
 			const outDir = config.outDir
@@ -71,7 +70,10 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 				config.concurrency,
 			);
 
-			if (entries.length <= config.maxUrlsPerSitemap) {
+			if (
+				entries.length <= config.maxUrlsPerSitemap &&
+				config.externalSitemaps.length === 0
+			) {
 				const xml = serializeSitemap(entries);
 
 				if (config.dryRun) {
@@ -105,6 +107,8 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 					xmlFiles.push({ filename, xml });
 					sitemapFiles.push(`${config.baseUrl}/${filename}`);
 				}
+
+				sitemapFiles.push(...config.externalSitemaps);
 
 				const indexXml = serializeSitemapIndex(sitemapFiles);
 

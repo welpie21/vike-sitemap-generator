@@ -15,6 +15,7 @@ export interface ResolvedConfig {
 	maxUrlsPerSitemap: number;
 	robots: boolean;
 	dryRun: boolean;
+	externalSitemaps: string[];
 }
 
 export function resolveConfig(options: SitemapPluginOptions): ResolvedConfig {
@@ -35,5 +36,6 @@ export function resolveConfig(options: SitemapPluginOptions): ResolvedConfig {
 		maxUrlsPerSitemap: options.maxUrlsPerSitemap ?? 50_000,
 		robots: options.robots ?? false,
 		dryRun: options.dryRun ?? false,
+		externalSitemaps: options.externalSitemaps ?? [],
 	};
 }
