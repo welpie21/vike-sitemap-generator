@@ -8,6 +8,7 @@ vike-sitemap-generator is a Vite build plugin for Vike (a full-stack framework b
 
 - Automatic URL collection from Vike's SSG prerender context or SSR route patterns
 - Per-page metadata via co-located `+sitemap.ts` files using Vike's extension system
+- Per-page URL enumeration via `+sitemapUrls.ts` for SSR apps with parameterized routes
 - Parallel metadata resolution with configurable concurrency (default 10)
 - Automatic sitemap index splitting for large sites exceeding 50,000 URLs
 - External sitemap references for multi-app domains (sitemap index)
@@ -69,6 +70,23 @@ export default { exclude: true };
 
 Per-page values override global plugin options. For dynamic routes, export a function that receives `SitemapPageContext<Data>` (`{ url, routeParams, data }`) where `data` comes from `+data.ts`.
 
+## URL enumeration with `+sitemapUrls.ts`
+
+For SSR apps with parameterized routes, provide concrete URLs via `+sitemapUrls.ts`:
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts (static list)
+export default ["/blog/hello-world", "/blog/second-post"];
+
+// pages/blog/@slug/+sitemapUrls.ts (async function)
+export default async () => {
+  const posts = await fetch("https://cms.example.com/posts").then((r) => r.json());
+  return posts.map((post) => `/blog/${post.slug}`);
+};
+```
+
+URLs from `+sitemapUrls.ts` are matched against page route patterns, so per-page `+sitemap.ts` config and route params are still resolved.
+
 ## Plugin options
 
 | Option              | Type                                          | Default        | Description                                                       |
@@ -101,6 +119,14 @@ Per-page values override global plugin options. For dynamic routes, export a fun
 
 `+sitemap.ts` can export either a `SitemapPageConfig` object or a `SitemapPageConfigFn` callback.
 
+## SitemapUrlsConfig (for +sitemapUrls.ts)
+
+```ts
+type SitemapUrlsConfig = string[] | (() => string[] | Promise<string[]>);
+```
+
+`+sitemapUrls.ts` exports either a static array of URL paths or a function (sync/async) that returns them.
+
 ## SitemapPageConfigFn (callback for dynamic routes)
 
 ```ts
@@ -118,7 +144,7 @@ type SitemapPageConfigFn<Data = unknown> = (context: SitemapPageContext<Data>) =
 ## Export paths
 
 - `vike-sitemap-generator` -- main plugin, types, and fetcher helpers
-- `vike-sitemap-generator/config` -- Vike extension config for `+sitemap.ts` support
+- `vike-sitemap-generator/config` -- Vike extension config for `+sitemap.ts` and `+sitemapUrls.ts` support
 
 ## Documentation
 

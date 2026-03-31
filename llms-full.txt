@@ -8,6 +8,7 @@ vike-sitemap-generator is a Vite build plugin for Vike (a full-stack framework b
 
 - Automatic URL collection from Vike's SSG prerender context or SSR route patterns
 - Per-page metadata via co-located `+sitemap.ts` files using Vike's extension system
+- Per-page URL enumeration via `+sitemapUrls.ts` for SSR apps with parameterized routes
 - Parallel metadata resolution with configurable concurrency (default 10)
 - Automatic sitemap index splitting for large sites exceeding 50,000 URLs
 - External sitemap references for multi-app domains (sitemap index)
@@ -34,7 +35,7 @@ Peer dependencies: `vike >= 0.4.0`, `vite >= 7.0.0`
 ## Export paths
 
 - `vike-sitemap-generator` -- main plugin export (`vikeSitemap`), type exports, and fetcher helpers (`getLastModFromGit`, `getLastModFromGithub`)
-- `vike-sitemap-generator/config` -- Vike extension config (default export) for `+sitemap.ts` support
+- `vike-sitemap-generator/config` -- Vike extension config (default export) for `+sitemap.ts` and `+sitemapUrls.ts` support
 
 ## Quick start
 
@@ -475,10 +476,65 @@ export default {
 };
 ```
 
+### URL enumeration with `+sitemapUrls.ts`
+
+For SSR apps with parameterized routes (e.g. `/blog/@slug`), the plugin cannot discover concrete URLs automatically since there is no prerender context. You can provide a `+sitemapUrls.ts` file alongside your page to enumerate the URLs that should appear in the sitemap.
+
+The `+sitemapUrls.ts` file exports either a static array of URL paths or a function (sync or async) that returns them:
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts (static list)
+import type { SitemapUrlsConfig } from "vike-sitemap-generator";
+
+export default [
+  "/blog/hello-world",
+  "/blog/second-post",
+] satisfies SitemapUrlsConfig;
+```
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts (async function)
+import type { SitemapUrlsConfig } from "vike-sitemap-generator";
+
+export default (async () => {
+  const posts = await fetch("https://cms.example.com/posts").then((r) => r.json());
+  return posts.map((post) => `/blog/${post.slug}`);
+}) satisfies SitemapUrlsConfig;
+```
+
+URLs from `+sitemapUrls.ts` are matched against page route patterns, so per-page `+sitemap.ts` config and route params are still resolved for them.
+
+This requires the Vike extension to be registered in `pages/+config.ts` (same setup as `+sitemap.ts`).
+
+SitemapUrlsConfig type:
+```ts
+type SitemapUrlsConfig = string[] | (() => string[] | Promise<string[]>);
+```
+
+### Combining `+sitemapUrls.ts` with `+sitemap.ts`
+
+You can use both files together. `+sitemapUrls.ts` provides the list of concrete URLs, and `+sitemap.ts` provides per-page metadata for each of those URLs:
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts
+export default ["/blog/hello-world", "/blog/second-post"];
+
+// pages/blog/@slug/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+import type { Data } from "./+data";
+
+export default ((context) => ({
+  priority: 0.7,
+  changefreq: "weekly",
+  lastmod: context.data.updatedAt,
+})) satisfies SitemapPageConfigFn<Data>;
+```
+
 ### SSG vs SSR behavior
 
 - SSG (prerendering): The plugin matches prerendered URLs back to their page route patterns to attach per-page metadata and extract route params. Both static and parameterized routes are matched correctly.
-- SSR (no prerendering): The plugin reads `page.config.sitemap` directly from each static page entry in Vike's config. Parameterized routes (containing `@`) are excluded unless their concrete URLs are provided via `additionalUrls`.
+- SSR (no prerendering): The plugin reads `page.config.sitemap` directly from each static page entry in Vike's config. Parameterized routes (containing `@`) are excluded unless their concrete URLs are provided via `additionalUrls` or `+sitemapUrls.ts`.
+- `+sitemapUrls.ts`: URLs enumerated by `+sitemapUrls.ts` files are collected from all pages and matched against route patterns for per-page config resolution.
 - Additional URLs (`additionalUrls`): matched against page route patterns so that per-page `+sitemap.ts` config and route params are resolved.
 
 ## Fetchers
@@ -583,6 +639,8 @@ interface SitemapPageContext<Data = unknown> {
 
 type SitemapPageConfigFn<Data = unknown> = (context: SitemapPageContext<Data>) => SitemapPageConfig | Promise<SitemapPageConfig>;
 
+type SitemapUrlsConfig = string[] | (() => string[] | Promise<string[]>);
+
 interface SitemapImage {
   loc: string;
   caption?: string;
@@ -634,6 +692,9 @@ export default {
     sitemap: {
       env: { config: true, server: true },
     },
+    sitemapUrls: {
+      env: { config: true, server: true },
+    },
   },
 } satisfies Config;
 
@@ -642,6 +703,7 @@ declare global {
   namespace Vike {
     interface Config {
       sitemap?: SitemapPageConfig | SitemapPageConfigFn;
+      sitemapUrls?: SitemapUrlsConfig;
     }
   }
 }
@@ -649,15 +711,17 @@ declare global {
 
 ## How it works
 
-The plugin hooks into Vite's build pipeline and only runs during the client build (the SSR build is skipped to avoid duplicate writes).
+The plugin hooks into Vite's build pipeline and runs after the SSR build completes. It waits for the SSR build so that `prerenderContext.pageContexts` (populated during the SSR build's `writeBundle`) and page configs loaded across Vite environment boundaries are available.
 
-1. `configResolved` -- reads Vike's page configuration via `getVikeConfig()`, including per-page `+sitemap.ts` metadata.
-2. `closeBundle` (client build only):
-   - Collects URLs from `prerenderContext` (SSG) or static route patterns (SSR)
+1. `configResolved` -- captures the Vite resolved config.
+2. `closeBundle` (SSR build only):
+   - Re-reads Vike's page configuration via `getVikeConfig()` to pick up `prerenderContext` and per-page `+sitemap.ts` / `+sitemapUrls.ts` metadata
+   - Collects URLs from `prerenderContext` (SSG) or static route patterns (SSR), plus URLs enumerated by `+sitemapUrls.ts` files
    - Attaches per-page `+sitemap.ts` config to each URL
    - Filters out excluded paths (global `exclude` patterns and per-page `exclude: true`)
    - Applies trailing slash rules
    - Resolves metadata (`lastmod`, `priority`, `changefreq`, `images`) in parallel with the configured concurrency, merging per-page values over global callbacks
+   - Resolves image asset imports via the client build manifest
    - Splits into multiple sitemap files if the URL count exceeds `maxUrlsPerSitemap`
    - Writes files to the resolved output directory (or logs in dry-run mode)
    - Appends a `Sitemap:` directive to `robots.txt` if enabled
