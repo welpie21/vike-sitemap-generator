@@ -5,6 +5,8 @@ Vite plugin for [Vike](https://vike.dev) that automatically generates a
 
 - Collects page URLs from Vike's prerender context (SSG) or route config (SSR)
 - Per-page metadata via co-located `+sitemap.ts` files (Vike extension)
+- Per-page URL enumeration via `+sitemapUrls.ts` for SSR apps with parameterized
+  routes
 - Parallel metadata resolution with configurable concurrency
 - Automatic sitemap index splitting for large sites (50,000+ URLs)
 - External sitemap references for multi-app domains (sitemap index)
@@ -100,6 +102,46 @@ export default {
 ```
 
 See the [Per-page metadata guide](docs/per-page-metadata.md) for details.
+
+## URL enumeration with `+sitemapUrls.ts`
+
+For SSR apps with parameterized routes (e.g. `/blog/@slug`), the plugin cannot
+discover concrete URLs automatically since there is no prerender context. You
+can provide a `+sitemapUrls.ts` file alongside your page to enumerate the URLs
+that should appear in the sitemap:
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts
+import type { SitemapUrlsConfig } from "vike-sitemap-generator";
+
+export default [
+	"/blog/hello-world",
+	"/blog/second-post",
+] satisfies SitemapUrlsConfig;
+```
+
+You can also export a function (sync or async) for dynamic enumeration:
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts
+import type { SitemapUrlsConfig } from "vike-sitemap-generator";
+
+export default (async () => {
+	const posts = await fetch("https://cms.example.com/posts").then((r) =>
+		r.json(),
+	);
+	return posts.map((post) => `/blog/${post.slug}`);
+}) satisfies SitemapUrlsConfig;
+```
+
+URLs from `+sitemapUrls.ts` are matched against page route patterns, so
+per-page `+sitemap.ts` config and route params are still resolved for them.
+
+This requires the Vike extension to be registered (see
+[Per-page metadata](#per-page-metadata-with-sitempts) above).
+
+See the [Per-page metadata guide](docs/per-page-metadata.md#url-enumeration-with-sitemapurlsts)
+for details.
 
 ## Options
 
@@ -435,13 +477,16 @@ Returns `YYYY-MM-DD` or `undefined`.
 
 ## How it works
 
-The plugin hooks into Vite's build pipeline and only runs during the client
-build (the SSR build is skipped to avoid duplicate writes).
+The plugin hooks into Vite's build pipeline and runs after the SSR build
+completes. It waits for the SSR build so that `prerenderContext.pageContexts`
+(populated during the SSR build's `writeBundle`) is available.
 
-1. **`configResolved`** -- reads Vike's page configuration via
-   `getVikeConfig()`, including per-page `+sitemap.ts` metadata
-2. **`closeBundle`** (client build only) --
-   - Collects URLs from `prerenderContext` (SSG) or static route patterns (SSR)
+1. **`configResolved`** -- captures the Vite resolved config
+2. **`closeBundle`** (SSR build only) --
+   - Re-reads Vike's page configuration via `getVikeConfig()` to pick up
+     `prerenderContext` and per-page `+sitemap.ts` / `+sitemapUrls.ts` metadata
+   - Collects URLs from `prerenderContext` (SSG) or static route patterns (SSR),
+     plus URLs enumerated by `+sitemapUrls.ts` files
    - Attaches per-page `+sitemap.ts` config to each URL
    - Filters out excluded paths (global `exclude` patterns and per-page
      `exclude: true`)
@@ -449,6 +494,7 @@ build (the SSR build is skipped to avoid duplicate writes).
    - Resolves metadata (`lastmod`, `priority`, `changefreq`, `images`) in
      parallel with the configured concurrency, merging per-page values over
      global callbacks
+   - Resolves image asset imports via the client build manifest
    - Splits into multiple sitemap files if the URL count exceeds
      `maxUrlsPerSitemap`
    - Writes files to the resolved output directory (or logs in dry-run mode)

@@ -143,15 +143,83 @@ export default {
 };
 ```
 
+## URL enumeration with `+sitemapUrls.ts`
+
+For SSR apps with parameterized routes (e.g. `/blog/@slug`), the plugin cannot
+discover concrete URLs automatically since there is no prerender context. You
+can provide a `+sitemapUrls.ts` file alongside your page to enumerate the URLs
+that should appear in the sitemap.
+
+### Static list
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts
+import type { SitemapUrlsConfig } from "vike-sitemap-generator";
+
+export default [
+	"/blog/hello-world",
+	"/blog/second-post",
+] satisfies SitemapUrlsConfig;
+```
+
+### Dynamic enumeration
+
+Export a function (sync or async) for dynamic URL discovery:
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts
+import type { SitemapUrlsConfig } from "vike-sitemap-generator";
+
+export default (async () => {
+	const posts = await fetch("https://cms.example.com/posts").then((r) =>
+		r.json(),
+	);
+	return posts.map((post) => `/blog/${post.slug}`);
+}) satisfies SitemapUrlsConfig;
+```
+
+### `SitemapUrlsConfig`
+
+```ts
+type SitemapUrlsConfig = string[] | (() => string[] | Promise<string[]>);
+```
+
+### Combining with `+sitemap.ts`
+
+You can use both files together. `+sitemapUrls.ts` provides the list of concrete
+URLs, and `+sitemap.ts` provides per-page metadata for each:
+
+```ts
+// pages/blog/@slug/+sitemapUrls.ts
+export default ["/blog/hello-world", "/blog/second-post"];
+
+// pages/blog/@slug/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+import type { Data } from "./+data";
+
+export default ((context) => ({
+	priority: 0.7,
+	changefreq: "weekly",
+	lastmod: context.data.updatedAt,
+})) satisfies SitemapPageConfigFn<Data>;
+```
+
+URLs from `+sitemapUrls.ts` are matched against page route patterns, so
+per-page `+sitemap.ts` config and route params are still resolved for them.
+
 ## SSG vs SSR behavior
 
 - **SSG (prerendering):** The plugin matches prerendered URLs back to their page
   configurations to attach per-page metadata and extract route params.
 - **SSR (no prerendering):** The plugin reads `page.config.sitemap` directly
   from each static page entry in Vike's config. Parameterized routes (containing
-  `@`) are excluded unless their concrete URLs are provided via `additionalUrls`.
+  `@`) are excluded unless their concrete URLs are provided via `additionalUrls`
+  or `+sitemapUrls.ts`.
+- **`+sitemapUrls.ts`:** URLs enumerated by `+sitemapUrls.ts` files are
+  collected from all pages and matched against route patterns for per-page
+  config resolution.
 
 In both cases, `+sitemap.ts` values are automatically available through Vike's
-config resolution. URLs provided via `additionalUrls` are matched against page
-route patterns, so per-page `+sitemap.ts` config and route params are resolved
-for them as well.
+config resolution. URLs provided via `additionalUrls` or `+sitemapUrls.ts` are
+matched against page route patterns, so per-page `+sitemap.ts` config and route
+params are resolved for them as well.
