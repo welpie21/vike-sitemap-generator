@@ -1,6 +1,6 @@
 {
 	"name": "vike-sitemap-generator",
-	"version": "2.2.1",
+	"version": "2.2.2",
 	"description": "Vite plugin for Vike that generates sitemap.xml at build time",
 	"type": "module",
 	"exports": {
@@ -23,8 +23,8 @@
 		"test": "bun test",
 		"prepublishOnly": "tsup",
 		"qc": "biome check .",
-		"qa": "biome check . --write",
-		"qau": "biome check . --write --unsafe"
+		"lint:fix": "biome check . --write",
+		"lint:fix:unsafe": "biome check . --write --unsafe"
 	},
 	"keywords": [
 		"vike",

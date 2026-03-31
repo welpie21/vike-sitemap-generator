@@ -28,10 +28,10 @@ export function collectUrls(
 	additionalUrls: string[],
 ): CollectedUrl[] {
 	const urlMap = new Map<string, CollectedUrl>();
+	const routeEntries = buildRouteEntries(vikeConfig);
 
 	const prerendered = vikeConfig.prerenderContext?.pageContexts;
 	if (prerendered && prerendered.length > 0) {
-		const routeEntries = buildRouteEntries(vikeConfig);
 		for (const ctx of prerendered) {
 			const url = normalizeUrlPath(ctx.urlOriginal);
 			if (!urlMap.has(url)) {
@@ -65,7 +65,12 @@ export function collectUrls(
 	for (const url of additionalUrls) {
 		const normalized = normalizeUrlPath(url);
 		if (!urlMap.has(normalized)) {
-			urlMap.set(normalized, { url: normalized });
+			const match = findMatchingRoute(normalized, routeEntries);
+			urlMap.set(normalized, {
+				url: normalized,
+				pageConfig: match?.pageConfig,
+				routeParams: match?.routeParams,
+			});
 		}
 	}
 
@@ -74,18 +79,47 @@ export function collectUrls(
 
 function buildRouteEntries(vikeConfig: VikeConfig): RouteEntry[] {
 	const entries: RouteEntry[] = [];
-	for (const page of Object.values(vikeConfig.pages)) {
+	for (const [key, page] of Object.entries(vikeConfig.pages)) {
 		if (page.isErrorPage) continue;
-		const route = page.route;
-		if (typeof route === "string") {
+		const routeString = resolveRouteString(key, page);
+		if (routeString) {
 			const pageConfig = (page.config as Record<string, unknown>).sitemap as
 				| SitemapPageConfig
 				| SitemapPageConfigFn
 				| undefined;
-			entries.push({ route: normalizeUrlPath(route), pageConfig });
+			entries.push({ route: normalizeUrlPath(routeString), pageConfig });
 		}
 	}
 	return entries;
+}
+
+/**
+ * Extracts a string route pattern from a Vike page object.
+ * Prefers the explicit `route` string, falls back to `routeFilesystem.routeString`,
+ * and finally derives a pattern from the page key (filesystem path like
+ * `/src/pages/blog/@slug` → `/blog/@slug`).
+ */
+function resolveRouteString(
+	key: string,
+	page: Record<string, unknown>,
+): string | undefined {
+	if (typeof page.route === "string") return page.route;
+
+	const routeFilesystem = page.routeFilesystem as
+		| { routeString: string }
+		| undefined;
+	if (routeFilesystem?.routeString) return routeFilesystem.routeString;
+
+	return deriveRouteFromPageKey(key);
+}
+
+const PAGES_PREFIX_RE = /^\/(?:src\/)?pages/;
+
+function deriveRouteFromPageKey(key: string): string | undefined {
+	if (!PAGES_PREFIX_RE.test(key)) return undefined;
+	let route = key.replace(PAGES_PREFIX_RE, "");
+	if (route.endsWith("/index")) route = route.slice(0, -"/index".length);
+	return route || "/";
 }
 
 function findMatchingRoute(

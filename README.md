@@ -277,6 +277,9 @@ vikeSitemap({
 });
 ```
 
+Additional URLs are matched against your page route patterns, so per-page
+`+sitemap.ts` config and route params are still resolved for these URLs.
+
 ### `exclude`
 
 An array of paths to exclude from the sitemap. Each entry can be an exact path

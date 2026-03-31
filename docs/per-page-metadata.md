@@ -146,9 +146,12 @@ export default {
 ## SSG vs SSR behavior
 
 - **SSG (prerendering):** The plugin matches prerendered URLs back to their page
-  configurations to attach per-page metadata.
+  configurations to attach per-page metadata and extract route params.
 - **SSR (no prerendering):** The plugin reads `page.config.sitemap` directly
-  from each page entry in Vike's config.
+  from each static page entry in Vike's config. Parameterized routes (containing
+  `@`) are excluded unless their concrete URLs are provided via `additionalUrls`.
 
 In both cases, `+sitemap.ts` values are automatically available through Vike's
-config resolution.
+config resolution. URLs provided via `additionalUrls` are matched against page
+route patterns, so per-page `+sitemap.ts` config and route params are resolved
+for them as well.
