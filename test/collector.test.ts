@@ -5,9 +5,10 @@ function mockVikeConfig(opts: {
 	pages?: Record<
 		string,
 		{
-			route?: string;
+			route?: string | ((...args: any[]) => any);
 			isErrorPage?: true;
 			sitemap?: Record<string, unknown> | ((...args: any[]) => any);
+			routeFilesystem?: string;
 		}
 	>;
 	prerenderContextUrls?: string[];
@@ -24,6 +25,12 @@ function mockVikeConfig(opts: {
 				...(val.isErrorPage
 					? { isErrorPage: true as const }
 					: { route: val.route }),
+				...(val.routeFilesystem && {
+					routeFilesystem: {
+						routeString: val.routeFilesystem,
+						definedAtLocation: "test",
+					},
+				}),
 			};
 		}
 	}
@@ -164,10 +171,116 @@ describe("collectUrls", () => {
 			expect(result.map((r) => r.url)).toEqual(["/about", "/blog"]);
 		});
 
-		test("additional URLs have no pageConfig", () => {
+		test("additional URLs have no pageConfig when no route matches", () => {
 			const vike = mockVikeConfig({ pages: {} });
 			const result = collectUrls(vike, ["/extra"]);
 			expect(result[0]?.pageConfig).toBeUndefined();
+		});
+
+		test("matches additional URLs against parameterized routes for pageConfig and routeParams", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: { priority: 0.7, changefreq: "weekly" },
+					},
+				},
+			});
+			const result = collectUrls(vike, ["/blog/post-1", "/blog/post-2"]);
+			expect(result).toEqual([
+				{
+					url: "/blog/post-1",
+					pageConfig: { priority: 0.7, changefreq: "weekly" },
+					routeParams: { slug: "post-1" },
+				},
+				{
+					url: "/blog/post-2",
+					pageConfig: { priority: 0.7, changefreq: "weekly" },
+					routeParams: { slug: "post-2" },
+				},
+			]);
+		});
+
+		test("attaches function pageConfig from parameterized route to additional URLs", () => {
+			const sitemapFn = ({ routeParams }: any) => ({
+				priority: routeParams.slug === "featured" ? 1.0 : 0.5,
+			});
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: sitemapFn,
+					},
+				},
+			});
+			const result = collectUrls(vike, ["/blog/featured", "/blog/regular"]);
+			expect(typeof result[0]?.pageConfig).toBe("function");
+			expect(result[0]?.routeParams).toEqual({ slug: "featured" });
+			expect(result[1]?.routeParams).toEqual({ slug: "regular" });
+		});
+
+		test("matches additional URLs against static routes for pageConfig", () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/about": {
+						route: "/about",
+						sitemap: { priority: 0.8 },
+					},
+				},
+			});
+			const result = collectUrls(vike, ["/about"]);
+			expect(result).toEqual([
+				{
+					url: "/about",
+					pageConfig: { priority: 0.8 },
+				},
+			]);
+		});
+
+		test("matches additional URLs via routeFilesystem for pages with function routes", () => {
+			const routeFn = () => true;
+			const vike = mockVikeConfig({
+				pages: {
+					"/pages/blog/@slug": {
+						route: routeFn,
+						routeFilesystem: "/blog/@slug",
+						sitemap: { priority: 0.7, changefreq: "weekly" },
+					},
+				},
+			});
+			const result = collectUrls(vike, ["/blog/post-1", "/blog/post-2"]);
+			expect(result).toEqual([
+				{
+					url: "/blog/post-1",
+					pageConfig: { priority: 0.7, changefreq: "weekly" },
+					routeParams: { slug: "post-1" },
+				},
+				{
+					url: "/blog/post-2",
+					pageConfig: { priority: 0.7, changefreq: "weekly" },
+					routeParams: { slug: "post-2" },
+				},
+			]);
+		});
+
+		test("derives route from page key for function routes without routeFilesystem", () => {
+			const routeFn = () => true;
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: routeFn,
+						sitemap: { priority: 0.7, changefreq: "weekly" },
+					},
+				},
+			});
+			const result = collectUrls(vike, ["/blog/post-1"]);
+			expect(result).toEqual([
+				{
+					url: "/blog/post-1",
+					pageConfig: { priority: 0.7, changefreq: "weekly" },
+					routeParams: { slug: "post-1" },
+				},
+			]);
 		});
 	});
 
