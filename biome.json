@@ -23,10 +23,6 @@
 		}
 	],
 	"files": {
-		"includes": [
-			"src/**/*", 
-			"test/**/*", 
-			"package.json"
-		]
+		"includes": ["src/**/*", "test/**/*", "package.json"]
 	}
 }
