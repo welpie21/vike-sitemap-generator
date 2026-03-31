@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { getVikeConfig } from "vike/plugin";
 import type { Plugin, ResolvedConfig as ViteResolvedConfig } from "vite";
+import { loadClientManifest, resolveImageAssets } from "./assetResolver.ts";
 import { collectUrls } from "./collector.ts";
 import { filterExcludedUrls } from "./filter.ts";
 import { resolveMetadata } from "./metadata.ts";
@@ -60,7 +61,7 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 				config.trailingSlash,
 			);
 
-			const entries = await resolveMetadata(
+			const rawEntries = await resolveMetadata(
 				transformed,
 				config.baseUrl,
 				config.lastmod,
@@ -69,6 +70,16 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 				config.images,
 				config.concurrency,
 			);
+
+			const manifest = await loadClientManifest(outDir);
+			const entries = manifest
+				? resolveImageAssets(
+						rawEntries,
+						manifest,
+						viteConfig.root,
+						config.baseUrl,
+					)
+				: rawEntries;
 
 			if (
 				entries.length <= config.maxUrlsPerSitemap &&

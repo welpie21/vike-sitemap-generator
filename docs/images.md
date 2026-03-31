@@ -54,6 +54,37 @@ export default {
 
 Per-page images override the global `images` callback for that URL.
 
+## Importing image assets
+
+You can import images directly in your `+sitemap.ts` files. The plugin
+automatically resolves Vite-processed asset imports (with content hashes) to
+their correct output URLs using the client build manifest:
+
+```ts
+// pages/index/+sitemap.ts
+import type { SitemapPageConfigFn } from "vike-sitemap-generator";
+import HeroImage from "~/assets/img/hero.png";
+
+export default (() => {
+	return {
+		priority: 1.0,
+		changefreq: "weekly",
+		images: [
+			{
+				loc: HeroImage,
+				title: "Hero banner",
+			},
+		],
+	};
+}) satisfies SitemapPageConfigFn;
+```
+
+The imported `HeroImage` value is resolved at build time to the hashed asset
+URL (e.g. `https://example.com/assets/hero-Bz7x4a2q.png`).
+
+> **Note:** This requires the Vite client build to produce a manifest file
+> (`.vite/manifest.json`), which is the default for Vike projects.
+
 ## SitemapImage fields
 
 | Field         | Type     | Required | Description                                    |
