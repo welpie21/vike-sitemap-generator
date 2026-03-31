@@ -16,6 +16,7 @@ export type {
 	SitemapPageConfigFn,
 	SitemapPageContext,
 	SitemapPluginOptions,
+	SitemapUrlsConfig,
 	TrailingSlashConfig,
 	TrailingSlashFn,
 	TrailingSlashRule,

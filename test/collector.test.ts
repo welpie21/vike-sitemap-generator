@@ -8,6 +8,7 @@ function mockVikeConfig(opts: {
 			route?: string | ((...args: any[]) => any);
 			isErrorPage?: true;
 			sitemap?: Record<string, unknown> | ((...args: any[]) => any);
+			sitemapUrls?: string[] | (() => string[] | Promise<string[]>);
 			routeFilesystem?: string;
 		}
 	>;
@@ -18,7 +19,10 @@ function mockVikeConfig(opts: {
 	if (opts.pages) {
 		for (const [key, val] of Object.entries(opts.pages)) {
 			pages[key] = {
-				config: { ...(val.sitemap ? { sitemap: val.sitemap } : {}) },
+				config: {
+					...(val.sitemap ? { sitemap: val.sitemap } : {}),
+					...(val.sitemapUrls ? { sitemapUrls: val.sitemapUrls } : {}),
+				},
 				_source: {},
 				_sources: {},
 				_from: {},
@@ -59,77 +63,77 @@ function mockVikeConfig(opts: {
 
 describe("collectUrls", () => {
 	describe("with prerender context (SSG)", () => {
-		test("collects all prerendered URLs", () => {
+		test("collects all prerendered URLs", async () => {
 			const vike = mockVikeConfig({
 				prerenderContextUrls: ["/", "/about", "/blog/post-1"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result.map((r) => r.url)).toEqual(["/", "/about", "/blog/post-1"]);
 		});
 
-		test("deduplicates prerendered URLs", () => {
+		test("deduplicates prerendered URLs", async () => {
 			const vike = mockVikeConfig({
 				prerenderContextUrls: ["/about", "/about"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result.map((r) => r.url)).toEqual(["/about"]);
 		});
 
-		test("strips query strings and hashes from prerendered URLs", () => {
+		test("strips query strings and hashes from prerendered URLs", async () => {
 			const vike = mockVikeConfig({
 				prerenderContextUrls: ["/about?foo=bar", "/blog#section"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result.map((r) => r.url)).toEqual(["/about", "/blog"]);
 		});
 	});
 
 	describe("without prerender context (SSR fallback)", () => {
-		test("collects static route patterns", () => {
+		test("collects static route patterns", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/index": { route: "/" },
 					"/pages/about": { route: "/about" },
 				},
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result.map((r) => r.url)).toEqual(["/", "/about"]);
 		});
 
-		test("excludes parameterized routes containing @", () => {
+		test("excludes parameterized routes containing @", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/index": { route: "/" },
 					"/pages/product": { route: "/product/@id" },
 				},
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result.map((r) => r.url)).toEqual(["/"]);
 		});
 
-		test("excludes error pages", () => {
+		test("excludes error pages", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/index": { route: "/" },
 					"/pages/_error": { isErrorPage: true },
 				},
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result.map((r) => r.url)).toEqual(["/"]);
 		});
 
-		test("excludes pages with function routes", () => {
+		test("excludes pages with function routes", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/index": { route: "/" },
 					"/pages/custom": {},
 				},
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result.map((r) => r.url)).toEqual(["/"]);
 		});
 
-		test("attaches per-page sitemap config in SSR mode", () => {
+		test("attaches per-page sitemap config in SSR mode", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/about": {
@@ -138,7 +142,7 @@ describe("collectUrls", () => {
 					},
 				},
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result).toEqual([
 				{
 					url: "/about",
@@ -149,35 +153,35 @@ describe("collectUrls", () => {
 	});
 
 	describe("additionalUrls", () => {
-		test("merges additional URLs", () => {
+		test("merges additional URLs", async () => {
 			const vike = mockVikeConfig({
 				pages: { "/pages/index": { route: "/" } },
 			});
-			const result = collectUrls(vike, ["/extra", "/more"]);
+			const result = await collectUrls(vike, ["/extra", "/more"]);
 			expect(result.map((r) => r.url)).toEqual(["/", "/extra", "/more"]);
 		});
 
-		test("deduplicates additional URLs against collected ones", () => {
+		test("deduplicates additional URLs against collected ones", async () => {
 			const vike = mockVikeConfig({
 				pages: { "/pages/index": { route: "/" } },
 			});
-			const result = collectUrls(vike, ["/"]);
+			const result = await collectUrls(vike, ["/"]);
 			expect(result.map((r) => r.url)).toEqual(["/"]);
 		});
 
-		test("normalizes additional URLs without leading slash", () => {
+		test("normalizes additional URLs without leading slash", async () => {
 			const vike = mockVikeConfig({ pages: {} });
-			const result = collectUrls(vike, ["about", "blog"]);
+			const result = await collectUrls(vike, ["about", "blog"]);
 			expect(result.map((r) => r.url)).toEqual(["/about", "/blog"]);
 		});
 
-		test("additional URLs have no pageConfig when no route matches", () => {
+		test("additional URLs have no pageConfig when no route matches", async () => {
 			const vike = mockVikeConfig({ pages: {} });
-			const result = collectUrls(vike, ["/extra"]);
+			const result = await collectUrls(vike, ["/extra"]);
 			expect(result[0]?.pageConfig).toBeUndefined();
 		});
 
-		test("matches additional URLs against parameterized routes for pageConfig and routeParams", () => {
+		test("matches additional URLs against parameterized routes for pageConfig and routeParams", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/blog/@slug": {
@@ -186,7 +190,7 @@ describe("collectUrls", () => {
 					},
 				},
 			});
-			const result = collectUrls(vike, ["/blog/post-1", "/blog/post-2"]);
+			const result = await collectUrls(vike, ["/blog/post-1", "/blog/post-2"]);
 			expect(result).toEqual([
 				{
 					url: "/blog/post-1",
@@ -201,7 +205,7 @@ describe("collectUrls", () => {
 			]);
 		});
 
-		test("attaches function pageConfig from parameterized route to additional URLs", () => {
+		test("attaches function pageConfig from parameterized route to additional URLs", async () => {
 			const sitemapFn = ({ routeParams }: any) => ({
 				priority: routeParams.slug === "featured" ? 1.0 : 0.5,
 			});
@@ -213,13 +217,16 @@ describe("collectUrls", () => {
 					},
 				},
 			});
-			const result = collectUrls(vike, ["/blog/featured", "/blog/regular"]);
+			const result = await collectUrls(vike, [
+				"/blog/featured",
+				"/blog/regular",
+			]);
 			expect(typeof result[0]?.pageConfig).toBe("function");
 			expect(result[0]?.routeParams).toEqual({ slug: "featured" });
 			expect(result[1]?.routeParams).toEqual({ slug: "regular" });
 		});
 
-		test("matches additional URLs against static routes for pageConfig", () => {
+		test("matches additional URLs against static routes for pageConfig", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/about": {
@@ -228,7 +235,7 @@ describe("collectUrls", () => {
 					},
 				},
 			});
-			const result = collectUrls(vike, ["/about"]);
+			const result = await collectUrls(vike, ["/about"]);
 			expect(result).toEqual([
 				{
 					url: "/about",
@@ -237,7 +244,7 @@ describe("collectUrls", () => {
 			]);
 		});
 
-		test("matches additional URLs via routeFilesystem for pages with function routes", () => {
+		test("matches additional URLs via routeFilesystem for pages with function routes", async () => {
 			const routeFn = () => true;
 			const vike = mockVikeConfig({
 				pages: {
@@ -248,7 +255,7 @@ describe("collectUrls", () => {
 					},
 				},
 			});
-			const result = collectUrls(vike, ["/blog/post-1", "/blog/post-2"]);
+			const result = await collectUrls(vike, ["/blog/post-1", "/blog/post-2"]);
 			expect(result).toEqual([
 				{
 					url: "/blog/post-1",
@@ -263,7 +270,7 @@ describe("collectUrls", () => {
 			]);
 		});
 
-		test("derives route from page key for function routes without routeFilesystem", () => {
+		test("derives route from page key for function routes without routeFilesystem", async () => {
 			const routeFn = () => true;
 			const vike = mockVikeConfig({
 				pages: {
@@ -273,7 +280,7 @@ describe("collectUrls", () => {
 					},
 				},
 			});
-			const result = collectUrls(vike, ["/blog/post-1"]);
+			const result = await collectUrls(vike, ["/blog/post-1"]);
 			expect(result).toEqual([
 				{
 					url: "/blog/post-1",
@@ -284,8 +291,155 @@ describe("collectUrls", () => {
 		});
 	});
 
+	describe("sitemapUrls", () => {
+		test("enumerates URLs from static sitemapUrls array", async () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: { priority: 0.7 },
+						sitemapUrls: ["/blog/post-1", "/blog/post-2"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, []);
+			expect(result).toEqual([
+				{
+					url: "/blog/post-1",
+					pageConfig: { priority: 0.7 },
+					routeParams: { slug: "post-1" },
+				},
+				{
+					url: "/blog/post-2",
+					pageConfig: { priority: 0.7 },
+					routeParams: { slug: "post-2" },
+				},
+			]);
+		});
+
+		test("enumerates URLs from sitemapUrls function", async () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: { priority: 0.7 },
+						sitemapUrls: () => ["/blog/post-1", "/blog/post-2"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual([
+				"/blog/post-1",
+				"/blog/post-2",
+			]);
+		});
+
+		test("enumerates URLs from async sitemapUrls function", async () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemapUrls: async () => ["/blog/async-1"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual(["/blog/async-1"]);
+		});
+
+		test("deduplicates sitemapUrls against SSR-collected static routes", async () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog": {
+						route: "/blog",
+						sitemap: { priority: 0.8 },
+					},
+					"/src/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemapUrls: ["/blog"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, []);
+			expect(result).toEqual([{ url: "/blog", pageConfig: { priority: 0.8 } }]);
+		});
+
+		test("deduplicates sitemapUrls against additionalUrls", async () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemapUrls: ["/blog/post-1"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, ["/blog/post-1"]);
+			expect(result.map((r) => r.url)).toEqual(["/blog/post-1"]);
+		});
+
+		test("collects sitemapUrls from multiple pages", async () => {
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemapUrls: ["/blog/post-1"],
+					},
+					"/src/pages/events/@slug": {
+						route: "/events/@slug",
+						sitemapUrls: ["/events/conf-2026"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, []);
+			expect(result.map((r) => r.url)).toEqual([
+				"/blog/post-1",
+				"/events/conf-2026",
+			]);
+		});
+
+		test("attaches function sitemap config from route to sitemapUrls entries", async () => {
+			const sitemapFn = ({ routeParams }: any) => ({
+				priority: routeParams.slug === "featured" ? 1.0 : 0.5,
+			});
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: "/blog/@slug",
+						sitemap: sitemapFn,
+						sitemapUrls: ["/blog/featured", "/blog/regular"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, []);
+			expect(typeof result[0]?.pageConfig).toBe("function");
+			expect(result[0]?.routeParams).toEqual({ slug: "featured" });
+			expect(result[1]?.routeParams).toEqual({ slug: "regular" });
+		});
+
+		test("works with function routes via page key derivation", async () => {
+			const routeFn = () => true;
+			const vike = mockVikeConfig({
+				pages: {
+					"/src/pages/blog/@slug": {
+						route: routeFn,
+						sitemap: { priority: 0.7 },
+						sitemapUrls: ["/blog/post-1"],
+					},
+				},
+			});
+			const result = await collectUrls(vike, []);
+			expect(result).toEqual([
+				{
+					url: "/blog/post-1",
+					pageConfig: { priority: 0.7 },
+					routeParams: { slug: "post-1" },
+				},
+			]);
+		});
+	});
+
 	describe("dynamic routes in SSG mode", () => {
-		test("attaches pageConfig from parameterized route to prerendered URL", () => {
+		test("attaches pageConfig from parameterized route to prerendered URL", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/blog/@slug": {
@@ -295,7 +449,7 @@ describe("collectUrls", () => {
 				},
 				prerenderContextUrls: ["/blog/post-1", "/blog/post-2"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result).toEqual([
 				{
 					url: "/blog/post-1",
@@ -310,7 +464,7 @@ describe("collectUrls", () => {
 			]);
 		});
 
-		test("extracts multiple route params", () => {
+		test("extracts multiple route params", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/blog/@year/@slug": {
@@ -320,14 +474,14 @@ describe("collectUrls", () => {
 				},
 				prerenderContextUrls: ["/blog/2025/hello-world"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result[0]?.routeParams).toEqual({
 				year: "2025",
 				slug: "hello-world",
 			});
 		});
 
-		test("attaches function pageConfig from parameterized route", () => {
+		test("attaches function pageConfig from parameterized route", async () => {
 			const sitemapFn = ({ routeParams }: any) => ({
 				priority: routeParams.slug === "featured" ? 1.0 : 0.5,
 			});
@@ -340,13 +494,13 @@ describe("collectUrls", () => {
 				},
 				prerenderContextUrls: ["/blog/featured", "/blog/regular"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(typeof result[0]?.pageConfig).toBe("function");
 			expect(result[0]?.routeParams).toEqual({ slug: "featured" });
 			expect(result[1]?.routeParams).toEqual({ slug: "regular" });
 		});
 
-		test("matches static routes alongside dynamic routes", () => {
+		test("matches static routes alongside dynamic routes", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/index": { route: "/" },
@@ -361,7 +515,7 @@ describe("collectUrls", () => {
 				},
 				prerenderContextUrls: ["/", "/about", "/blog/post-1"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result).toEqual([
 				{ url: "/", pageConfig: undefined, routeParams: {} },
 				{
@@ -377,17 +531,17 @@ describe("collectUrls", () => {
 			]);
 		});
 
-		test("returns undefined pageConfig for URLs with no matching route", () => {
+		test("returns undefined pageConfig for URLs with no matching route", async () => {
 			const vike = mockVikeConfig({
 				pages: {},
 				prerenderContextUrls: ["/orphan-page"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result[0]?.pageConfig).toBeUndefined();
 			expect(result[0]?.routeParams).toBeUndefined();
 		});
 
-		test("passes data from prerender pageContext", () => {
+		test("passes data from prerender pageContext", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/blog/@slug": {
@@ -406,28 +560,28 @@ describe("collectUrls", () => {
 					},
 				],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result[0]?.data).toEqual({ title: "Post 1", tags: ["ts"] });
 			expect(result[1]?.data).toEqual({ title: "Post 2", tags: ["js"] });
 		});
 
-		test("data is undefined when pageContext has no data", () => {
+		test("data is undefined when pageContext has no data", async () => {
 			const vike = mockVikeConfig({
 				pages: {
 					"/pages/about": { route: "/about" },
 				},
 				prerenderContextUrls: ["/about"],
 			});
-			const result = collectUrls(vike, []);
+			const result = await collectUrls(vike, []);
 			expect(result[0]?.data).toBeUndefined();
 		});
 	});
 
-	test("returns sorted URLs", () => {
+	test("returns sorted URLs", async () => {
 		const vike = mockVikeConfig({
 			prerenderContextUrls: ["/z-page", "/a-page", "/m-page"],
 		});
-		const result = collectUrls(vike, []);
+		const result = await collectUrls(vike, []);
 		expect(result.map((r) => r.url)).toEqual(["/a-page", "/m-page", "/z-page"]);
 	});
 });

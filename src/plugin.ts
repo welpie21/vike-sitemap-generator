@@ -40,7 +40,7 @@ export function vikeSitemap(options: SitemapPluginOptions): Plugin {
 				? resolve(viteConfig.root, config.outDir)
 				: resolveClientOutDir(viteConfig);
 
-			const collected = collectUrls(vikeConfig, config.additionalUrls);
+			const collected = await collectUrls(vikeConfig, config.additionalUrls);
 
 			const filtered = filterExcludedUrls(collected, config.exclude);
 

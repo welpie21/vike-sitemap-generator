@@ -3,6 +3,7 @@ import type {
 	CollectedUrl,
 	SitemapPageConfig,
 	SitemapPageConfigFn,
+	SitemapUrlsConfig,
 } from "./types.ts";
 
 type VikeConfig = ReturnType<typeof getVikeConfig>;
@@ -19,14 +20,15 @@ interface RouteEntry {
  *   matches each URL against page route patterns to attach per-page sitemap
  *   metadata and extract route params.
  * - SSR fallback: uses page route patterns, excluding parameterized routes (containing `@`)
- *   and error pages
+ *   and error pages. Pages with `+sitemapUrls.ts` are enumerated for their
+ *   concrete URLs.
  *
  * Additional user-supplied URLs are merged and deduplicated.
  */
-export function collectUrls(
+export async function collectUrls(
 	vikeConfig: VikeConfig,
 	additionalUrls: string[],
-): CollectedUrl[] {
+): Promise<CollectedUrl[]> {
 	const urlMap = new Map<string, CollectedUrl>();
 	const routeEntries = buildRouteEntries(vikeConfig);
 
@@ -62,7 +64,19 @@ export function collectUrls(
 		}
 	}
 
-	for (const url of additionalUrls) {
+	const sitemapUrlEntries = await collectSitemapUrls(vikeConfig);
+	addUrlsToMap(urlMap, sitemapUrlEntries, routeEntries);
+	addUrlsToMap(urlMap, additionalUrls, routeEntries);
+
+	return [...urlMap.values()].sort((a, b) => a.url.localeCompare(b.url));
+}
+
+function addUrlsToMap(
+	urlMap: Map<string, CollectedUrl>,
+	urls: string[],
+	routeEntries: RouteEntry[],
+): void {
+	for (const url of urls) {
 		const normalized = normalizeUrlPath(url);
 		if (!urlMap.has(normalized)) {
 			const match = findMatchingRoute(normalized, routeEntries);
@@ -73,8 +87,29 @@ export function collectUrls(
 			});
 		}
 	}
+}
 
-	return [...urlMap.values()].sort((a, b) => a.url.localeCompare(b.url));
+/**
+ * Resolves `sitemapUrls` config from all pages, calling functions and
+ * flattening into a single URL list.
+ */
+async function collectSitemapUrls(vikeConfig: VikeConfig): Promise<string[]> {
+	const urls: string[] = [];
+
+	for (const page of Object.values(vikeConfig.pages)) {
+		if (page.isErrorPage) continue;
+		const sitemapUrls = (page.config as Record<string, unknown>).sitemapUrls as
+			| SitemapUrlsConfig
+			| undefined;
+		if (!sitemapUrls) continue;
+
+		const resolved =
+			typeof sitemapUrls === "function" ? await sitemapUrls() : sitemapUrls;
+
+		urls.push(...resolved);
+	}
+
+	return urls;
 }
 
 function buildRouteEntries(vikeConfig: VikeConfig): RouteEntry[] {

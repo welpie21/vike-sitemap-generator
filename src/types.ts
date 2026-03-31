@@ -175,6 +175,13 @@ export type SitemapPageConfigFn<Data = unknown> = (
 	context: SitemapPageContext<Data>,
 ) => SitemapPageConfig | Promise<SitemapPageConfig>;
 
+/**
+ * Per-page URL enumeration for SSR apps with parameterized routes.
+ * Defined in +sitemapUrls.ts files alongside +sitemap.ts.
+ * Returns the concrete URL paths that should be included in the sitemap.
+ */
+export type SitemapUrlsConfig = string[] | (() => string[] | Promise<string[]>);
+
 /** A collected URL together with its optional per-page sitemap config. */
 export interface CollectedUrl {
 	url: string;
