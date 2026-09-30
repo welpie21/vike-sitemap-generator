@@ -21,6 +21,7 @@
 	"scripts": {
 		"build": "tsup",
 		"test": "bun test",
+		"typecheck": "tsc --noEmit",
 		"prepublishOnly": "tsup",
 		"qc": "biome check .",
 		"lint:fix": "biome check . --write",
